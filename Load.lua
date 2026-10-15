@@ -735,6 +735,12 @@ local Library do
             self.Holder:Clean()
         end
 
+        for Index, Value in (self.BlurCleanup or { }) do 
+            if Value and Value.Parent then 
+                Value:Destroy()
+            end
+        end
+
         Library = nil 
         getgenv().Library = nil
     end
@@ -1016,6 +1022,11 @@ local Library do
             NearIntensity = 1,
             Name = ""
         })
+
+        -- เก็บไว้ให้ Unload ล้าง (ไม่งั้นเบลอค้างหลังปิด UI)
+        Library.BlurCleanup = Library.BlurCleanup or { }
+        TableInsert(Library.BlurCleanup, Part.Instance)
+        TableInsert(Library.BlurCleanup, DepthOfField.Instance)
 
         Library:Connect(RunService.RenderStepped, function()
             if Window.IsOpen then
@@ -2262,7 +2273,7 @@ local Library do
         Library.Window = function(self, Data)
             Data = Data or { }
 
-            local Scale = Data.Scale or Data.scale or (IsMobile and 0.699999988079071 or 1)
+            local Scale = Data.Scale or Data.scale or (IsMobile and 0.699999988079071 or 0.8)
             local Size = Data.Size or Data.size or UDim2New(0, 677, 0, 644)
 
             local Viewport = (Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize) or Vector2New(1920, 1080)
