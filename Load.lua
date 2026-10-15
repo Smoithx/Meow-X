@@ -5616,8 +5616,8 @@ local Library do
                 Items = Data.Items or Data.items or { "One", "Two", "Three" },
                 Default = Data.Default or Data.default or nil,
                 Callback = Data.Callback or Data.callback or function() end,
-                Size = Data.Size or Data.size or 125,
-                OptionHolderSize = Data.OptionHolderSize or Data.optionholder or 125,
+                Size = Data.Size or Data.size or 180,
+                OptionHolderSize = Data.OptionHolderSize or Data.optionholder or 180,
                 Multi = Data.Multi or Data.multi or false,
 
                 Value = { },
@@ -5631,7 +5631,7 @@ local Library do
                     Parent = Dropdown.Section.Items["Content"].Instance,
                     Name = "\0",
                     BackgroundTransparency = 1,
-                    Size = UDim2New(1, 0, 0, 25),
+                    Size = UDim2New(1, 0, 0, 28),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ZIndex = 2,
                     BorderSizePixel = 0,
@@ -5664,7 +5664,7 @@ local Library do
                     TextColor3 = FromRGB(0, 0, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "",
-                    Size = UDim2New(0, Dropdown.Size or 125, 0, 25),
+                    Size = UDim2New(0, Dropdown.Size or 180, 0, 28),
                     AutoButtonColor = false,
                     AnchorPoint = Vector2New(1, 0),
                     Position = UDim2New(1, 0, 0, 0),
@@ -5677,8 +5677,16 @@ local Library do
                 Instances:Create("UICorner", {
                     Parent = Items["RealDropdown"].Instance,
                     Name = "\0",
-                    CornerRadius = UDimNew(0, 6)
+                    CornerRadius = UDimNew(0, 8)
                 })
+
+                Instances:Create("UIStroke", {
+                    Parent = Items["RealDropdown"].Instance,
+                    Name = "\0",
+                    Color = FromRGB(35, 33, 38),
+                    Thickness = 1,
+                    ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                }):AddToTheme({Color = "Outline"})
                 
                 Items["Value"] = Instances:Create("TextLabel", {
                     Parent = Items["RealDropdown"].Instance,
@@ -5742,9 +5750,10 @@ local Library do
                     AutoButtonColor = false,
                     Name = "\0",
                     Visible = false,
+                    ClipsDescendants = true,
                     Position = UDim2New(0, 897, 0, 101),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(0, 159, 0, 87),
+                    Size = UDim2New(0, 180, 0, 180),
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(27, 25, 29)
                 })  Items["OptionHolder"]:AddToTheme({BackgroundColor3 = "Background"})
@@ -5752,6 +5761,7 @@ local Library do
                 Instances:Create("UIStroke", {
                     Parent = Items["OptionHolder"].Instance,
                     Name = "\0",
+                    Thickness = 1,
                     Color = FromRGB(35, 33, 38),
                     ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                 }):AddToTheme({Color = "Outline"})
@@ -5759,18 +5769,40 @@ local Library do
                 Instances:Create("UICorner", {
                     Parent = Items["OptionHolder"].Instance,
                     Name = "\0",
-                    CornerRadius = UDimNew(0, 5)
+                    CornerRadius = UDimNew(0, 8)
                 })
-                
+
+                -- scratch / search box
+                Items["SearchBox"] = Instances:Create("TextBox", {
+                    Parent = Items["OptionHolder"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    TextColor3 = FromRGB(240, 240, 240),
+                    PlaceholderColor3 = FromRGB(140, 140, 140),
+                    PlaceholderText = "Search...",
+                    Text = "",
+                    ClearTextOnFocus = false,
+                    Size = UDim2New(1, -16, 0, 26),
+                    Position = UDim2New(0, 8, 0, 8),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    BorderSizePixel = 0,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextSize = 13,
+                    BackgroundColor3 = FromRGB(21, 18, 16)
+                })  Items["SearchBox"]:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+                Instances:Create("UICorner", {Parent = Items["SearchBox"].Instance, Name="\0", CornerRadius = UDimNew(0, 6)})
+                Instances:Create("UIStroke", {Parent = Items["SearchBox"].Instance, Name="\0", Color = FromRGB(35,33,38), ApplyStrokeMode = Enum.ApplyStrokeMode.Border}):AddToTheme({Color="Outline"})
+                Instances:Create("UIPadding", {Parent = Items["SearchBox"].Instance, Name="\0", PaddingLeft = UDimNew(0, 8), PaddingRight = UDimNew(0, 8)})
+
                 Items["Holder"] = Instances:Create("ScrollingFrame", {
                     Parent = Items["OptionHolder"].Instance,
                     Name = "\0",
                     Active = true,
                     AutomaticCanvasSize = Enum.AutomaticSize.Y,
-                    ScrollBarThickness = 2,
-                    Size = UDim2New(1, -16, 1, -16),
+                    ScrollBarThickness = 3,
+                    Size = UDim2New(1, -16, 1, -52),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 8, 0, 8),
+                    Position = UDim2New(0, 8, 0, 42),
                     BackgroundColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
                     BorderSizePixel = 0,
@@ -5780,8 +5812,16 @@ local Library do
                 Instances:Create("UIListLayout", {
                     Parent = Items["Holder"].Instance,
                     Name = "\0",
-                    Padding = UDimNew(0, 4),
+                    Padding = UDimNew(0, 3),
                     SortOrder = Enum.SortOrder.LayoutOrder
+                })
+                Instances:Create("UIPadding", {
+                    Parent = Items["Holder"].Instance,
+                    Name = "\0",
+                    PaddingTop = UDimNew(0, 2),
+                    PaddingBottom = UDimNew(0, 2),
+                    PaddingLeft = UDimNew(0, 2),
+                    PaddingRight = UDimNew(0, 6)
                 })                
             end
 
@@ -5827,6 +5867,14 @@ local Library do
             end)
 
             local RenderStepped 
+            local function ApplyDropdownSearch()
+                local q = StringLower(Items["SearchBox"].Instance.Text or "")
+                q = q:gsub("^%s+",""):gsub("%s+$","")
+                for _, OD in Dropdown.OptionsWithIndexes do
+                    local hit = q == "" or StringFind(StringLower(OD.Name), q, 1, true) ~= nil
+                    OD.Button.Instance.Visible = hit
+                end
+            end
 
             function Dropdown:SetOpen(Bool)
                 if Debounce then 
@@ -5857,6 +5905,9 @@ local Library do
                         Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
                         Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, Dropdown.OptionHolderSize)
                     end)
+                    Items["SearchBox"].Instance.Text = ""
+                    ApplyDropdownSearch()
+                    task.defer(function() Items["SearchBox"].Instance:CaptureFocus() end)
 
                     for Index, Value in Library.OpenFrames do 
                         if Value ~= Dropdown and not Dropdown.Section.IsSettings then 
@@ -5979,7 +6030,7 @@ local Library do
                     Text = "",
                     AutoButtonColor = false,
                     BackgroundTransparency = 1,
-                    Size = UDim2New(1, 0, 0, 20),
+                    Size = UDim2New(1, 0, 0, 26),
                     BorderSizePixel = 0,
                     TextSize = 14,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -6019,14 +6070,15 @@ local Library do
                     TextColor3 = FromRGB(255, 255, 255),
                     TextTransparency = 0.30000001192092896,
                     Text = Option,
-                    Size = UDim2New(0, 0, 0, 15),
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Size = UDim2New(1, -35, 0, 15),
                     AnchorPoint = Vector2New(0, 0.5),
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
                     Position = UDim2New(0, 30, 0.5, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 13,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  OptionText:AddToTheme({TextColor3 = "Text"})
                 
@@ -6170,6 +6222,10 @@ local Library do
 
             Items["RealDropdown"]:Connect("MouseButton1Down", function()
                 Dropdown:SetOpen(not Dropdown.IsOpen)
+            end)
+
+            Library:Connect(Items["SearchBox"].Instance:GetPropertyChangedSignal("Text"), function()
+                if Dropdown.IsOpen then ApplyDropdownSearch() end
             end)
 
             Library:Connect(UserInputService.InputBegan, function(Input)
