@@ -5616,8 +5616,8 @@ local Library do
                 Items = Data.Items or Data.items or { "One", "Two", "Three" },
                 Default = Data.Default or Data.default or nil,
                 Callback = Data.Callback or Data.callback or function() end,
-                Size = Data.Size or Data.size or 180,
-                OptionHolderSize = Data.OptionHolderSize or Data.optionholder or 180,
+                Size = Data.Size or Data.size or 240,
+                OptionHolderSize = Data.OptionHolderSize or Data.optionholder or 220,
                 Multi = Data.Multi or Data.multi or false,
 
                 Value = { },
@@ -5664,7 +5664,7 @@ local Library do
                     TextColor3 = FromRGB(0, 0, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "",
-                    Size = UDim2New(0, Dropdown.Size or 180, 0, 28),
+                    Size = UDim2New(0, Dropdown.Size or 240, 0, 28),
                     AutoButtonColor = false,
                     AnchorPoint = Vector2New(1, 0),
                     Position = UDim2New(1, 0, 0, 0),
@@ -5750,10 +5750,10 @@ local Library do
                     AutoButtonColor = false,
                     Name = "\0",
                     Visible = false,
-                    ClipsDescendants = true,
+                    ClipsDescendants = false,
                     Position = UDim2New(0, 897, 0, 101),
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(0, 180, 0, 180),
+                    Size = UDim2New(0, 240, 0, 220),
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(27, 25, 29)
                 })  Items["OptionHolder"]:AddToTheme({BackgroundColor3 = "Background"})
@@ -6029,8 +6029,9 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = "",
                     AutoButtonColor = false,
+                    ClipsDescendants = false,
                     BackgroundTransparency = 1,
-                    Size = UDim2New(1, 0, 0, 26),
+                    Size = UDim2New(1, 0, 0, 28),
                     BorderSizePixel = 0,
                     TextSize = 14,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -6042,7 +6043,7 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     AnchorPoint = Vector2New(0, 0.5),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 0, 0.5, 0),
+                    Position = UDim2New(0, 4, 0.5, 0),
                     Size = UDim2New(0, 6, 0, 6),
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -6064,7 +6065,7 @@ local Library do
                 })
                 
                 local OptionText = Instances:Create("TextLabel", {
-                    Parent = OptionAccent.Instance,
+                    Parent = OptionButton.Instance,
                     Name = "\0",
                     FontFace = Library.Font,
                     TextColor3 = FromRGB(255, 255, 255),
@@ -6072,11 +6073,12 @@ local Library do
                     Text = Option,
                     TextTruncate = Enum.TextTruncate.AtEnd,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Size = UDim2New(1, -35, 0, 15),
+                    ClipsDescendants = false,
+                    Size = UDim2New(1, -28, 0, 16),
                     AnchorPoint = Vector2New(0, 0.5),
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 30, 0.5, 0),
+                    Position = UDim2New(0, 20, 0.5, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
                     TextSize = 13,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -6092,10 +6094,10 @@ local Library do
                 
                 function OptionData:Toggle(Value)
                     if Value == "Active" then
-                        OptionText:Tween(nil, {TextTransparency = 0, Position = UDim2New(0, 15, 0.5, 0)})
+                        OptionText:Tween(nil, {TextTransparency = 0, Position = UDim2New(0, 30, 0.5, 0)})
                         OptionAccent:Tween(nil, {BackgroundTransparency = 0})
                     else
-                        OptionText:Tween(nil, {TextTransparency = 0.3, Position = UDim2New(0, 0, 0.5, 0)})
+                        OptionText:Tween(nil, {TextTransparency = 0.3, Position = UDim2New(0, 20, 0.5, 0)})
                         OptionAccent:Tween(nil, {BackgroundTransparency = 1})
                     end
                 end
@@ -6103,17 +6105,17 @@ local Library do
                 function OptionData:RefreshPosition(Bool)
                     if Bool then 
                         if OptionData.Selected then
-                            OptionAccent:Tween(TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2New(0, 0, 0.5, 0)})
-                            OptionText:Tween(TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2New(0, 15, 0.5, 0)})
+                            OptionAccent:Tween(TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2New(0, 4, 0.5, 0)})
+                            OptionText:Tween(TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2New(0, 30, 0.5, 0)})
                         else
-                            OptionText:Tween(TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2New(0, 0, 0.5, 0)})
+                            OptionText:Tween(TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2New(0, 20, 0.5, 0)})
                         end
                     else
                         if OptionData.Selected then
-                            OptionAccent.Instance.Position = UDim2New(0, 30, 0.5, 0)
-                            OptionText.Instance.Position = UDim2New(0, 45, 0.5, 0)
+                            OptionAccent.Instance.Position = UDim2New(0, 34, 0.5, 0)
+                            OptionText.Instance.Position = UDim2New(0, 60, 0.5, 0)
                         else
-                            OptionText.Instance.Position = UDim2New(0, 30, 0.5, 0)
+                            OptionText.Instance.Position = UDim2New(0, 50, 0.5, 0)
                         end
                     end
 
