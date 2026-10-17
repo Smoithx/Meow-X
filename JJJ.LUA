@@ -23,6 +23,7 @@ local RunService = cloneref(game:GetService("RunService"))
 local TeleportService = cloneref(game:GetService("TeleportService"))
 local GuiService = cloneref(game:GetService("GuiService"))
 local VirtualInputManager = cloneref(game:GetService("VirtualInputManager"))
+local HttpService = cloneref(game:GetService("HttpService"))
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -74,6 +75,11 @@ local DefaultConfig = {
     ["Join Hell"] = false,
     ["Join Players"] = 1,
     ["Join Retry"] = 3,
+    ["Auto Sell Ores"] = false,
+    ["Sell Ore Rarities"] = { "Common" },
+    ["Keep Ores"] = 0,
+    ["Auto Sell Armor"] = false,
+    ["Sell Armor Rarities"] = { "Common" },
 }
 
 Config = Config or {}
@@ -83,7 +89,166 @@ for Key, Value in pairs(DefaultConfig) do
     end
 end
 
+-- SAVE
+
+local SaveFolder = "Iron Soul"
+local SaveFile = SaveFolder .. "/Config.json"
+local SaveSupported = readfile and writefile and isfile and isfolder and makefolder
+
+local function EncodeCFrame(CF)
+    local RX, RY, RZ = CF:ToOrientation()
+    return { X = CF.Position.X, Y = CF.Position.Y, Z = CF.Position.Z, RX = RX, RY = RY, RZ = RZ }
+end
+
+local function DecodeCFrame(Value)
+    if typeof(Value) == "table" and Value.__cframe then
+        Value = Value.__cframe
+    end
+    if typeof(Value) ~= "table" then
+        return nil
+    end
+    for _, Key in ipairs({ "X", "Y", "Z", "RX", "RY", "RZ" }) do
+        if type(Value[Key]) ~= "number" then
+            return nil
+        end
+    end
+    return CFrame.new(Value.X, Value.Y, Value.Z) * CFrame.Angles(Value.RX, Value.RY, Value.RZ)
+end
+
+local function SaveSettings()
+    if not SaveSupported then
+        return false, "Executor Not Support Save System"
+    end
+
+    local Success, Error = pcall(function()
+        if not isfolder(SaveFolder) then
+            makefolder(SaveFolder)
+        end
+        local SaveData = {}
+        for Key, Value in pairs(Config) do
+            if typeof(Value) == "CFrame" then
+                SaveData[Key] = { __cframe = EncodeCFrame(Value) }
+            else
+                SaveData[Key] = Value
+            end
+        end
+        local Encoded = HttpService:JSONEncode(SaveData)
+        if not isfile(SaveFile) or readfile(SaveFile) ~= Encoded then
+            writefile(SaveFile, Encoded)
+        end
+    end)
+    if not Success then
+        warn("[Iron Soul] SaveSettings failed: " .. tostring(Error))
+    end
+    return Success, Error
+end
+
+local function LoadSettings()
+    if not SaveSupported then
+        warn("Executor Not Support Save System")
+        return false
+    end
+
+    local Success, Data = pcall(function()
+        if not isfolder(SaveFolder) then
+            makefolder(SaveFolder)
+        end
+        if not isfile(SaveFile) then
+            return nil
+        end
+        return HttpService:JSONDecode(readfile(SaveFile))
+    end)
+    if not Success then
+        warn("[Iron Soul] LoadSettings failed: " .. tostring(Data))
+        return false
+    end
+    if Data == nil then
+        return SaveSettings()
+    end
+    if type(Data) ~= "table" then
+        warn("[Iron Soul] Invalid settings: expected a JSON object")
+        return false
+    end
+    for Key, Value in pairs(Data) do
+        if Key == "Save Position" or (typeof(Value) == "table" and Value.__cframe) then
+            Config[Key] = DecodeCFrame(Value) or Value
+        else
+            Config[Key] = Value
+        end
+    end
+    return true
+end
+
+LoadSettings()
+
+-- INVENTORY MODULES
+
+local EquipmentUtil = Framework.Modules.EquipmentUtil
+local EquipmentData = Framework.Modules.EquipmentData
+local ForgeUtil = Framework.Modules.ForgeUtil
+local CodesRF = ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Systems")
+    :WaitForChild("CodesSystem"):WaitForChild("CodesRF", 10)
+local RarityNames = {}
+for Index, Tier in ipairs(Framework.Modules.RarityTiers.Tiers) do
+    RarityNames[Index] = Tier.Name
+end
+local InventoryState = {
+    RedeemBusy = false,
+    OresBusy = false,
+    ArmorBusy = false,
+    OresNote = "พร้อม",
+    ArmorNote = "พร้อม",
+}
+
 -- CONSTANTS
+
+-- Public code lists checked 2026-10-17; redemption availability is decided by the game.
+-- https://robloxden.com/game-codes/iron-soul-dungeon
+-- https://beebom.com/iron-soul-dungeon-codes/
+-- https://www.destructoid.com/iron-soul-dungeon-codes/
+local REDEEM_CODES = {
+    "IRONSOULWEEKEND28",
+    "BOWANDSKILLTREE",
+    "IRONSOULWEEKEND27",
+    "TRADEISLANDUPDATE",
+    "RAGNAROK",
+    "IRONWEEKENDGIFT26",
+    "IRONTRADETYCOON",
+    "SEASON4COMING",
+    "IRONSOULBIGUPDATE",
+    "BOSSODINARRIVED",
+    "IRONSOULWEEKEND25",
+    "SEASON3ENDEVENT",
+    "IRONSMALLUPDATE",
+    "IRONNEWUPDATE",
+    "IRONSOULWEEKEND24",
+    "MAP5HELL",
+    "IRONSOULWEEKEND23",
+    "MAP5COMING",
+    "IRONSOULWEEKEND22",
+    "SEASON3EXPANSION",
+    "250KMEMBERGIFT",
+    "LALAGANG",
+    "IRONSOULWEEKEND21",
+    "Ahjughh",
+    "SEASONVOUCHER",
+    "IRONSOULWEEKEND17",
+    "SCYTHEWEAPON",
+    "NEWMAP",
+    "CELEBRATEFOR150KMEMBER",
+    "NEWMAPEXPAND",
+    "IRONSOULWEEKEND16",
+    "IRONSOULWEEKEND15",
+    "SEASON2EXPAND",
+    "DMGHOTFIX",
+    "SEASONSPINSSS",
+    "IRONSOULWEEKEND14",
+    "TGIFSEASON2",
+    "SEASON2GIFTA",
+    "SEASON2LIVE",
+    "SEASON2OPEN",
+    "IRONSOULWEEKEND13",
+}
 
 local SKILL_ORDER = { "SkillU", "Skill2", "Skill1" }
 local ENEMY_TAG = "EnemyNpc"
@@ -877,6 +1042,129 @@ local function StartAutoJoin()
     JoinBusy = false
 end
 
+-- INVENTORY FUNCTIONS
+
+local function IsSellRaritySelected(Selected, Rarity)
+    return type(Selected) == "table" and table.find(Selected, RarityNames[Rarity]) ~= nil
+end
+
+local function GetOreSellList()
+    local Selected, Total = {}, 0
+    local Keep = math.max(0, math.floor(tonumber(Config["Keep Ores"]) or 0))
+    for ID, Count in pairs(ForgeUtil:GetOres(LocalPlayer)) do
+        local Def = ForgeUtil:GetDef(ID)
+        if Def and type(Count) == "number" and IsSellRaritySelected(Config["Sell Ore Rarities"], Def.Rarity) then
+            local Amount = math.max(0, math.floor(Count) - Keep)
+            if Amount > 0 then
+                Selected[ID] = Amount
+                Total = Total + Amount
+            end
+        end
+    end
+    return Selected, Total
+end
+
+local function GetArmorSellList()
+    local Selected = {}
+    local Equipped = EquipmentData:GetEquipped(LocalPlayer) or {}
+    local ExtraWeapon = EquipmentUtil:GetExtraWeaponUUID(LocalPlayer)
+    for UUID, Item in pairs(EquipmentData:GetOwned(LocalPlayer) or {}) do
+        local Def = EquipmentUtil:GetDef(Item.ID)
+        if Def and Def.Type == "Armor"
+            and IsSellRaritySelected(Config["Sell Armor Rarities"], EquipmentUtil:GetOreRarity(Item.MaxOre))
+            and not Equipped[UUID] and UUID ~= ExtraWeapon
+            and not EquipmentUtil:IsEquipByUUID(LocalPlayer, UUID)
+            and not EquipmentUtil:IsLocked(LocalPlayer, UUID) then
+            table.insert(Selected, UUID)
+        end
+    end
+    return Selected, #Selected
+end
+
+local function SellOres()
+    if InventoryState.OresBusy then
+        return
+    end
+    InventoryState.OresBusy = true
+    local Success, Error = pcall(function()
+        local Selected, Count = GetOreSellList()
+        if Count == 0 then
+            InventoryState.OresNote = "ไม่มีแร่ตรงเงื่อนไข"
+            return
+        end
+        ForgeUtil:Sell(LocalPlayer, Selected)
+        InventoryState.OresNote = "ส่งคำขอขายแร่ " .. Count .. " ชิ้นแล้ว"
+    end)
+    if not Success then
+        InventoryState.OresNote = "ขายแร่ผิดพลาด: " .. tostring(Error)
+    end
+    InventoryState.OresBusy = false
+end
+
+local function SellArmor()
+    if InventoryState.ArmorBusy then
+        return
+    end
+    InventoryState.ArmorBusy = true
+    local Success, Error = pcall(function()
+        local Selected, Count = GetArmorSellList()
+        if Count == 0 then
+            InventoryState.ArmorNote = "ไม่มีเกราะตรงเงื่อนไข"
+            return
+        end
+        EquipmentUtil:Sell(LocalPlayer, Selected)
+        InventoryState.ArmorNote = "ส่งคำขอขายเกราะ " .. Count .. " ชิ้นแล้ว"
+    end)
+    if not Success then
+        InventoryState.ArmorNote = "ขายเกราะผิดพลาด: " .. tostring(Error)
+    end
+    InventoryState.ArmorBusy = false
+end
+
+local function RedeemCodes()
+    if InventoryState.RedeemBusy then
+        return "กำลัง Redeem Code อยู่"
+    end
+    if not CodesRF then
+        return "ไม่พบระบบ Redeem Code"
+    end
+    InventoryState.RedeemBusy = true
+    local Seen, Results = {}, {}
+    local Redeemed, Skipped, Failed = 0, 0, 0
+    local Success, Error = pcall(function()
+        for _, Code in ipairs(REDEEM_CODES) do
+            if not Seen[Code] then
+                Seen[Code] = true
+                local CallOk, Accepted, Message = pcall(function()
+                    return CodesRF:InvokeServer("RedeemCode", Code)
+                end)
+                if CallOk and (Message == "Cooldown" or Message == "Busy") then
+                    task.wait(3)
+                    CallOk, Accepted, Message = pcall(function()
+                        return CodesRF:InvokeServer("RedeemCode", Code)
+                    end)
+                end
+                if CallOk and Accepted == true then
+                    Redeemed = Redeemed + 1
+                elseif CallOk and Message == "AlreadyUsed" then
+                    Skipped = Skipped + 1
+                else
+                    Failed = Failed + 1
+                end
+                local Detail = CallOk and Message or Accepted
+                table.insert(Results, Code .. ": " .. tostring(Detail or Accepted))
+                task.wait(1)
+            end
+        end
+    end)
+    InventoryState.RedeemBusy = false
+    if not Success then
+        return "Redeem ผิดพลาด: " .. tostring(Error)
+    end
+    return string.format("สำเร็จ %d | ใช้แล้ว %d | ไม่สำเร็จ %d", Redeemed, Skipped, Failed)
+        .. "\n" .. table.concat(Results, "\n")
+end
+
 -- LOOPS
 
 task.spawn(function()
@@ -1004,6 +1292,23 @@ task.spawn(function()
     end
 end)
 
+local Ex_Function = {}
+Ex_Function["Auto Sell"] = function()
+    task.spawn(function()
+        while task.wait(5) do
+            pcall(function()
+                if Config["Auto Sell Ores"] then
+                    SellOres()
+                end
+                if Config["Auto Sell Armor"] then
+                    SellArmor()
+                end
+            end)
+        end
+    end)
+end
+Ex_Function["Auto Sell"]()
+
 -- UI
 
 local WINDUI_URL = "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
@@ -1072,12 +1377,138 @@ local SettingTab = Window:Tab({
     Icon = "settings",
 })
 
+local InventoryTab = Window:Tab({
+    Title = "Codes / Sell",
+    Icon = "package",
+})
+
 MainTab:Select()
 
 local JoinTitles = {}
 for _, Entry in ipairs(JOIN_WORLDS) do
     table.insert(JoinTitles, Entry.Title)
 end
+
+-- REDEEM AND SELL UI
+
+local RedeemSection = InventoryTab:Section({ Title = "Redeem Code", Icon = "gift", Opened = true })
+RedeemSection:Button({
+    Title = "Redeem All Code",
+    Icon = "gift",
+    Callback = function()
+        if InventoryState.RedeemBusy then
+            return
+        end
+        task.spawn(function()
+            local Result = RedeemCodes()
+            WindUI:Notify({
+                Title = "Redeem All Code",
+                Content = Result,
+                Duration = 10,
+            })
+        end)
+    end,
+})
+
+local OreSection = InventoryTab:Section({ Title = "ขายแร่ / Ores", Icon = "gem", Opened = true })
+local OreStatus = OreSection:Paragraph({ Title = "สถานะแร่", Desc = InventoryState.OresNote })
+OreSection:Dropdown({
+    Title = "ความหายากแร่ที่ขาย",
+    Values = RarityNames,
+    Value = Config["Sell Ore Rarities"],
+    Multi = true,
+    AllowNone = true,
+    Callback = function(Value)
+        Config["Sell Ore Rarities"] = Value
+        SaveSettings()
+    end,
+})
+OreSection:Slider({
+    Title = "เก็บแร่ไว้ต่อชนิด",
+    Desc = "ขายเฉพาะส่วนที่เกินจำนวนนี้",
+    Value = { Min = 0, Max = 1000, Default = Config["Keep Ores"] },
+    Step = 1,
+    Callback = function(Value)
+        Config["Keep Ores"] = Value
+        SaveSettings()
+    end,
+})
+OreSection:Toggle({
+    Title = "Auto Sell Ores",
+    Desc = "ขายแร่ตามเงื่อนไขทุก 5 วินาที",
+    Value = Config["Auto Sell Ores"],
+    Callback = function(Value)
+        Config["Auto Sell Ores"] = Value
+        SaveSettings()
+    end,
+})
+OreSection:Button({
+    Title = "ตรวจรายการแร่ก่อนขาย",
+    Callback = function()
+        local Success, Selected, Count = pcall(GetOreSellList)
+        local Lines = {}
+        if Success then
+            for ID, Amount in pairs(Selected) do
+                table.insert(Lines, ID .. " x" .. Amount)
+            end
+            table.sort(Lines)
+        end
+        WindUI:Notify({
+            Title = "แร่ที่ตรงเงื่อนไข",
+            Content = Success and ("รวม " .. Count .. " ชิ้น\n" .. table.concat(Lines, "\n")) or tostring(Selected),
+            Duration = 8,
+        })
+    end,
+})
+OreSection:Button({
+    Title = "ขายแร่ตามเงื่อนไขตอนนี้",
+    Callback = function()
+        task.spawn(SellOres)
+    end,
+})
+
+local ArmorSection = InventoryTab:Section({ Title = "ขายเกราะ / Armor", Icon = "shield", Opened = true })
+local ArmorStatus = ArmorSection:Paragraph({
+    Title = "สถานะเกราะ",
+    Desc = "ขายเฉพาะเกราะที่ไม่ได้สวมใส่และไม่ได้ล็อก",
+})
+ArmorSection:Dropdown({
+    Title = "ความหายากเกราะที่ขาย",
+    Values = RarityNames,
+    Value = Config["Sell Armor Rarities"],
+    Multi = true,
+    AllowNone = true,
+    Callback = function(Value)
+        Config["Sell Armor Rarities"] = Value
+        SaveSettings()
+    end,
+})
+ArmorSection:Toggle({
+    Title = "Auto Sell Armor",
+    Desc = "ขายเกราะตามเงื่อนไขทุก 5 วินาที ข้ามชิ้นที่ใส่หรือล็อกไว้",
+    Value = Config["Auto Sell Armor"],
+    Callback = function(Value)
+        Config["Auto Sell Armor"] = Value
+        SaveSettings()
+    end,
+})
+ArmorSection:Button({
+    Title = "ตรวจจำนวนเกราะก่อนขาย",
+    Callback = function()
+        local Success, Selected, Count = pcall(GetArmorSellList)
+        WindUI:Notify({
+            Title = "เกราะที่ตรงเงื่อนไข",
+            Content = Success and ("รวม " .. Count .. " ชิ้น (ข้ามชิ้นที่ใส่หรือล็อกไว้)") or tostring(Selected),
+            Duration = 5,
+        })
+    end,
+})
+ArmorSection:Button({
+    Title = "ขายเกราะตามเงื่อนไขตอนนี้",
+    Callback = function()
+        task.spawn(SellArmor)
+    end,
+})
 
 -- Join
 
@@ -1099,6 +1530,7 @@ JoinSection:Dropdown({
         for _, Entry in ipairs(JOIN_WORLDS) do
             if Entry.Title == Value then
                 Config["Join World"] = Entry.Key
+                SaveSettings()
                 return
             end
         end
@@ -1116,6 +1548,7 @@ local JoinStageDropdown = JoinSection:Dropdown({
         for Index, Name in ipairs(JOIN_STAGES) do
             if Name == Value then
                 Config["Join Stage"] = Index
+                SaveSettings()
                 return
             end
         end
@@ -1129,6 +1562,7 @@ JoinSection:Toggle({
     Value = Config["Join Hell"],
     Callback = function(Value)
         Config["Join Hell"] = Value
+        SaveSettings()
         State.JoinNote = Value and "Hell Mode เปิด" or "Hell Mode ปิด"
     end,
 })
@@ -1140,6 +1574,7 @@ JoinSection:Toggle({
     Value = Config["Auto Join"],
     Callback = function(Value)
         Config["Auto Join"] = Value
+        SaveSettings()
         State.JoinTries = 0
         State.LastJoin = os.clock() - 60
         State.JoinNote = Value and "Auto Join ทำงาน" or "Auto Join หยุด"
@@ -1193,6 +1628,7 @@ JoinActionSection:Slider({
     Step = 1,
     Callback = function(Value)
         Config["Join Players"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1203,6 +1639,7 @@ JoinActionSection:Slider({
     Step = 1,
     Callback = function(Value)
         Config["Join Retry"] = Value
+        SaveSettings()
         State.JoinTries = 0
     end,
 })
@@ -1223,6 +1660,7 @@ DungeonSection:Toggle({
     Value = Config["Auto Dungeon"],
     Callback = function(Value)
         Config["Auto Dungeon"] = Value
+        SaveSettings()
         State.LastProgress = os.clock()
     end,
 })
@@ -1234,6 +1672,7 @@ DungeonSection:Toggle({
     Value = Config["Auto Attack"],
     Callback = function(Value)
         Config["Auto Attack"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1244,6 +1683,7 @@ DungeonSection:Toggle({
     Value = Config["Auto Skill"],
     Callback = function(Value)
         Config["Auto Skill"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1254,6 +1694,7 @@ DungeonSection:Toggle({
     Value = Config["Auto Replay"],
     Callback = function(Value)
         Config["Auto Replay"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1301,6 +1742,27 @@ ActionSection:Button({
 
 -- Settings
 
+local SaveSection = SettingTab:Section({ Title = "Config", Icon = "save", Opened = true })
+
+SaveSection:Paragraph({
+    Title = "บันทึกอัตโนมัติ",
+    Desc = "โหลดค่าเมื่อรันสคริปต์ และบันทึกเมื่อเปลี่ยนค่าใน UI\n" .. SaveFile,
+})
+
+SaveSection:Button({
+    Title = "บันทึก Config",
+    Desc = "บันทึกค่าปัจจุบันลงไฟล์",
+    Icon = "save",
+    Callback = function()
+        local Success, Error = SaveSettings()
+        WindUI:Notify({
+            Title = Success and "บันทึกสำเร็จ" or "บันทึกไม่สำเร็จ",
+            Content = Success and SaveFile or tostring(Error),
+            Duration = 4,
+        })
+    end,
+})
+
 local CombatSection = SettingTab:Section({ Title = "Combat", Icon = "sword", Opened = true })
 
 CombatSection:Slider({
@@ -1310,6 +1772,7 @@ CombatSection:Slider({
     Step = 0.5,
     Callback = function(Value)
         Config["Attack Distance"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1320,6 +1783,7 @@ CombatSection:Slider({
     Step = 1,
     Callback = function(Value)
         Config["Kill Radius"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1330,6 +1794,7 @@ CombatSection:Slider({
     Step = 0.05,
     Callback = function(Value)
         Config["Skill Delay"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1342,6 +1807,7 @@ MoveSection:Slider({
     Step = 5,
     Callback = function(Value)
         Config["Tween Speed"] = Value
+        SaveSettings()
     end,
 })
 
@@ -1355,6 +1821,8 @@ local StatusParagraph = StatusSection:Paragraph({
 task.spawn(function()
     while task.wait(1) do
         pcall(function()
+            OreStatus:SetDesc(InventoryState.OresNote)
+            ArmorStatus:SetDesc(InventoryState.ArmorNote)
             ReadRound()
 
             local Alive = #GetEnemyList()
@@ -1394,3 +1862,7 @@ pcall(function()
 end)
 
 return State
+
+
+
+
