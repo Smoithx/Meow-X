@@ -1,8 +1,57 @@
--- Iron Soul | Auto Dungeon (Tween) + Auto Attack + Auto Skill
--- Game: Iron Soul (Starless Forest / World1..5) + Auto Join (Dungeon Select)
 
-if not game:IsLoaded() then
-    game.Loaded:Wait()
+local BOOT_TIMEOUT = 120
+local BOOT_POLL = 0.1
+
+local function GetBootPlayer()
+    return game:GetService("Players").LocalPlayer
+end
+
+local function IsCharacterReady()
+    local LocalPlayer = GetBootPlayer()
+    if not LocalPlayer then
+        return false
+    end
+
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+    return Humanoid ~= nil and Humanoid.Health > 0 and Root ~= nil
+end
+
+local function IsWorldReady()
+    local LocalPlayer = GetBootPlayer()
+    local PlayerGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+    if PlayerGui and PlayerGui:FindFirstChild("MainGui") then
+        return true
+    end
+
+    if workspace:FindFirstChild("MatchRoom") or workspace:FindFirstChild("WorldEnemys") then
+        return true
+    end
+
+    -- Resolved through GetService, not the cached local: this gate runs before the
+    -- Service block below exists.
+    return game:GetService("ReplicatedStorage"):FindFirstChild("GameRoundCfg") ~= nil
+end
+
+local function WaitForGame()
+    local Deadline = os.clock() + BOOT_TIMEOUT
+
+    while os.clock() < Deadline do
+        if game:IsLoaded() and IsCharacterReady() and IsWorldReady() then
+            -- The client reports loaded a beat before the game's own state is
+            -- finished; these frames let CharacterAdded scripts settle.
+            task.wait(0.5)
+            return true
+        end
+        task.wait(BOOT_POLL)
+    end
+
+    return false
+end
+
+if not WaitForGame() then
+    warn(string.format("[Iron Soul] Client not playable after %ds, loading anyway", BOOT_TIMEOUT))
 end
 
 if not LPH_OBFUSCATED then
@@ -69,6 +118,12 @@ local DefaultConfig = {
     ["Tween Speed"] = 60,
     ["Kill Radius"] = 14,
     ["Skill Delay"] = 0.35,
+    ["Underground"] = true,
+    ["Underground Depth"] = 7,
+    ["No Attack Cooldown"] = true,
+    ["Fast Skill"] = true,
+    ["Auto Swap Weapon"] = true,
+    ["Swap Delay"] = 1.5,
     ["Auto Join"] = false,
     ["Join World"] = "World1",
     ["Join Stage"] = 1,
@@ -561,6 +616,8 @@ local State = {
     RoundComplete = 0,
     MaxRound = 0,
     LastSkill = 0,
+    LastSwap = 0,
+    LastNoclip = 0,
     LastRequeue = 0,
     LastProgress = 0,
     LastSignature = "",
@@ -596,6 +653,118 @@ local function GetController()
     end
     return nil
 end
+
+-- UNDERGROUND FLY
+
+-- Freefall is a state the action system still accepts, so holding the root under
+-- the floor every frame keeps attack and skills running while nothing on the
+-- surface has a reachable line to us. The floor itself is solid, so the body has
+-- to stop colliding first or the solver just pushes it back out.
+local FlyTarget
+local FlyLook
+local NoclipParts = {}
+local NoclipOn = false
+
+local function SetFlyTarget(Position, LookAt)
+    FlyTarget = Position
+    FlyLook = LookAt
+end
+
+local function ClearFlyTarget()
+    FlyTarget = nil
+    FlyLook = nil
+end
+
+local function GetFlatDistance(PositionA, PositionB)
+    return (Vector3.new(PositionA.X, 0, PositionA.Z) - Vector3.new(PositionB.X, 0, PositionB.Z)).Magnitude
+end
+
+-- Only parts that were colliding get flipped, so root parts and accessories that
+-- ship with CanCollide off are never touched on the way back.
+local function ApplyNoclip()
+    local Character = GetCharacter()
+    if not Character then
+        return
+    end
+
+    for _, Part in ipairs(Character:GetDescendants()) do
+        if Part:IsA("BasePart") and Part.CanCollide then
+            Part.CanCollide = false
+            NoclipParts[Part] = true
+        end
+    end
+end
+
+local function ClearNoclip()
+    for Part in pairs(NoclipParts) do
+        if Part.Parent then
+            Part.CanCollide = true
+        end
+    end
+    table.clear(NoclipParts)
+end
+
+-- The game re-builds the character on every respawn, so collisions are pushed
+-- down again on a slow tick instead of once at toggle time.
+local function UpdateNoclip(Enabled)
+    if Enabled then
+        if not NoclipOn or os.clock() - State.LastNoclip >= 0.25 then
+            State.LastNoclip = os.clock()
+            NoclipOn = true
+            ApplyNoclip()
+        end
+        return
+    end
+
+    if NoclipOn then
+        NoclipOn = false
+        ClearNoclip()
+    end
+end
+
+RunService.Heartbeat:Connect(function(Delta)
+    if not FlyTarget or not Config["Underground"] or not Config["Auto Dungeon"] then
+        UpdateNoclip(false)
+        return
+    end
+
+    local Root = GetRootPart()
+    local Humanoid = GetHumanoid()
+    if not Root or not Humanoid or Humanoid.Health <= 0 then
+        UpdateNoclip(false)
+        return
+    end
+
+    UpdateNoclip(true)
+
+    local Current = Root.Position
+    local Distance = (FlyTarget - Current).Magnitude
+
+    -- A target that died mid-flight leaves the pin without a job; without this the
+    -- body keeps sinking with collisions off until the world eats it.
+    if Current.Y < FlyTarget.Y - 80 then
+        FlyTarget = nil
+        FlyLook = nil
+        UpdateNoclip(false)
+        return
+    end
+
+    local Speed = math.max(tonumber(Config["Tween Speed"]) or 60, 1)
+    local NextPosition = Current
+    if Distance >= 0.05 then
+        NextPosition = Current:Lerp(FlyTarget, math.clamp(Speed * Delta / Distance, 0, 1))
+    end
+
+    -- Gravity re-applies every frame otherwise, and a live assembly velocity would
+    -- read as a free-falling character on the server. The pose is re-applied every
+    -- frame because the humanoid uprights itself and would flatten the pitch.
+    Root.AssemblyLinearVelocity = Vector3.zero
+    if FlyLook and (FlyLook - NextPosition).Magnitude > 0.05 then
+        Root.CFrame = CFrame.lookAt(NextPosition, FlyLook)
+    else
+        Root.CFrame = Root.CFrame.Rotation + NextPosition
+    end
+end)
 
 local function GetEnemyRoot(Model)
     if not Model or not Model.Parent then
@@ -788,6 +957,13 @@ local function FacePosition(Position)
         return
     end
 
+    -- CFrame.lookAt throws on a zero length look vector, which is exactly what
+    -- happens once the character stands on the enemy's footprint.
+    local Flat = Vector3.new(MyRoot.Position.X - Position.X, 0, MyRoot.Position.Z - Position.Z)
+    if Flat.Magnitude < 0.1 then
+        return
+    end
+
     MyRoot.CFrame = CFrame.lookAt(MyRoot.Position, Vector3.new(Position.X, MyRoot.Position.Y, Position.Z))
 end
 
@@ -840,6 +1016,16 @@ local function MoveToEnemy(Enemy)
     end
 
     local TargetPosition = Enemy.Root.Position
+
+    if Config["Underground"] then
+        -- Directly under the monster, Depth studs down, body turned up at it: the
+        -- enemy sits straight overhead so the look vector ends up vertical.
+        -- The heartbeat owns the pose from here so the up-facing pitch is re-applied
+        -- every frame; the 0.1s loop only hands it a target.
+        SetFlyTarget(Vector3.new(TargetPosition.X, TargetPosition.Y - Config["Underground Depth"], TargetPosition.Z), TargetPosition)
+        return true
+    end
+
     local Direction = MyRoot.Position - TargetPosition
     if Direction.Magnitude < 0.001 then
         Direction = Vector3.new(0, 0, 1)
@@ -857,9 +1043,30 @@ local function MoveToEnemy(Enemy)
     return true
 end
 
+-- The weapon holder carries every cooldown the client checks by itself, so the
+-- fast paths below only have to keep those stamps in the past.
+local function GetWeaponHolder()
+    return LocalPlayer:FindFirstChild("PlayerEquippedWeapon")
+end
+
 local function PerformAttack()
     local Controller = GetController()
-    if not Controller or not Controller.WeaponDef.Ready then
+    if not Controller then
+        return false
+    end
+
+    if Config["No Attack Cooldown"] then
+        -- BaseAttack gates on WeaponDef.Ready and on Info.CD against the action
+        -- clock; holding the input makes its own stage loop chain instead of
+        -- waiting for a fresh press.
+        Controller.WeaponDef.Ready = true
+        Controller.LastActionTime.BaseAttack = 0
+        Controller.HoldingBaseAttack = true
+        Controller:PerformAction("BaseAttack")
+        return true
+    end
+
+    if not Controller.WeaponDef.Ready then
         return false
     end
 
@@ -869,7 +1076,24 @@ end
 
 local function PerformSkill()
     local Controller = GetController()
-    if not Controller or not Controller.WeaponDef.Ready then
+    if not Controller then
+        return false
+    end
+
+    if Config["Fast Skill"] then
+        -- CheckSkillCD reads the local action clock and the server's LastTs
+        -- attributes; both are cleared so the check always passes.
+        Controller.WeaponDef.Ready = true
+        local Holder = GetWeaponHolder()
+        for _, SkillName in ipairs(SKILL_ORDER) do
+            Controller.LastActionTime[SkillName] = 0
+            if Holder then
+                Holder:SetAttribute(SkillName .. "LastTs", 0)
+            end
+        end
+    end
+
+    if not Controller.WeaponDef.Ready then
         return false
     end
 
@@ -915,6 +1139,11 @@ local function WalkToWaypoint()
     local MyRoot = GetRootPart()
     if not Waypoint or not MyRoot then
         return false
+    end
+
+    if Config["Underground"] then
+        SetFlyTarget(Vector3.new(Waypoint.X, Waypoint.Y - Config["Underground Depth"], Waypoint.Z))
+        return true
     end
 
     local Destination = Vector3.new(Waypoint.X, MyRoot.Position.Y, Waypoint.Z)
@@ -1390,6 +1619,15 @@ task.spawn(function()
 
             local Enemy, Distance = GetNearestEnemy()
 
+            -- Under the floor the vertical gap is ours, not the enemy's, so the
+            -- reach check runs on the flat distance.
+            if Enemy and Config["Underground"] then
+                local MyRoot = GetRootPart()
+                if MyRoot then
+                    Distance = GetFlatDistance(Enemy.Root.Position, MyRoot.Position)
+                end
+            end
+
             if not Enemy then
                 -- No reachable enemy: either the room is clear (walk to the next
                 -- room trigger) or enemies exist but their body has not streamed
@@ -1408,7 +1646,8 @@ task.spawn(function()
             MoveToEnemy(Enemy)
 
             if Distance and Distance <= Config["Kill Radius"] then
-                if Config["Auto Skill"] and os.clock() - State.LastSkill >= Config["Skill Delay"] then
+                local SkillDelay = Config["Fast Skill"] and 0.05 or Config["Skill Delay"]
+                if Config["Auto Skill"] and os.clock() - State.LastSkill >= SkillDelay then
                     if PerformSkill() then
                         return
                     end
@@ -1515,6 +1754,73 @@ Ex_Function["Auto Sell"] = function()
     end)
 end
 Ex_Function["Auto Sell"]()
+
+-- WEAPON SWAP
+
+-- ChangeWeaponSlot with no slot id is the game's own rotate-to-next-weapon path,
+-- the same one its swap keybind uses; it returns early by itself when fewer than
+-- two weapons are equipped, so a single-weapon account just no-ops here.
+local function GetEquippedSlotCount()
+    local Ok, First, Second, Extra = pcall(EquipmentUtil.GetAllEquipedWeapon, EquipmentUtil, LocalPlayer)
+    if not Ok then
+        return 0
+    end
+
+    local Count = 0
+    if First then
+        Count += 1
+    end
+    if Second then
+        Count += 1
+    end
+    if Extra then
+        Count += 1
+    end
+    return Count
+end
+
+local function SwapWeapon()
+    local Controller = GetController()
+    if not Controller then
+        return false
+    end
+
+    -- The game drops a swap request made mid-action, so mirror its own guard
+    -- instead of burning the server side swap cooldown on a refused call.
+    if Controller:HasBaseAttackStage() or Controller:HasSkillAction() then
+        return false
+    end
+
+    if GetEquippedSlotCount() < 2 then
+        return false
+    end
+
+    local Ok, Changed = pcall(EquipmentUtil.ChangeWeaponSlot, EquipmentUtil, LocalPlayer)
+    if Ok and Changed then
+        State.LastSwap = os.clock()
+        return true
+    end
+
+    return false
+end
+
+task.spawn(function()
+    while task.wait(0.25) do
+        pcall(function()
+            if not Config["Auto Swap Weapon"] or not Config["Auto Dungeon"] then
+                return
+            end
+
+            local Delay = math.max(tonumber(Config["Swap Delay"]) or 1.5, 0.5)
+            if os.clock() - State.LastSwap < Delay then
+                return
+            end
+
+            State.LastSwap = os.clock()
+            SwapWeapon()
+        end)
+    end
+end)
 
 -- UI
 
@@ -2038,6 +2344,53 @@ DungeonSection:Toggle({
 })
 
 DungeonSection:Toggle({
+    Title = "บินใต้ดิน",
+    Desc = "บินอยู่ใต้พื้นแล้วตีจากข้างล่าง",
+    Icon = "arrow-down",
+    Value = Config["Underground"],
+    Callback = function(Value)
+        Config["Underground"] = Value
+        if not Value then
+            ClearFlyTarget()
+        end
+        SaveSettings()
+    end,
+})
+
+DungeonSection:Toggle({
+    Title = "ตีไม่มีคูลดาวน์",
+    Desc = "ตีต่อเนื่องโดยไม่รอ CD",
+    Icon = "sword",
+    Value = Config["No Attack Cooldown"],
+    Callback = function(Value)
+        Config["No Attack Cooldown"] = Value
+        SaveSettings()
+    end,
+})
+
+DungeonSection:Toggle({
+    Title = "สกิลเร็ว",
+    Desc = "ล้าง CD ฝั่งไคลเอนต์ให้ใช้สกิลถี่ขึ้น",
+    Icon = "sparkles",
+    Value = Config["Fast Skill"],
+    Callback = function(Value)
+        Config["Fast Skill"] = Value
+        SaveSettings()
+    end,
+})
+
+DungeonSection:Toggle({
+    Title = "สลับอาวุธ",
+    Desc = "สลับอาวุธตามเวลาที่ตั้ง (ต้องมีอาวุธ 2 ช่องขึ้นไป)",
+    Icon = "repeat",
+    Value = Config["Auto Swap Weapon"],
+    Callback = function(Value)
+        Config["Auto Swap Weapon"] = Value
+        SaveSettings()
+    end,
+})
+
+DungeonSection:Toggle({
     Title = "Auto Replay",
     Desc = "เล่นซ้ำอัตโนมัติเมื่อจบหรือติดขัด",
     Icon = "repeat",
@@ -2161,6 +2514,28 @@ MoveSection:Slider({
     end,
 })
 
+MoveSection:Slider({
+    Title = "Underground Depth",
+    Desc = "ความลึกใต้พื้นตอนบินตี (studs)",
+    Value = { Min = 0, Max = 20, Default = Config["Underground Depth"] },
+    Step = 0.5,
+    Callback = function(Value)
+        Config["Underground Depth"] = Value
+        SaveSettings()
+    end,
+})
+
+MoveSection:Slider({
+    Title = "Swap Delay",
+    Desc = "ระยะเวลาสลับอาวุธ (วินาที)",
+    Value = { Min = 0.5, Max = 5, Default = Config["Swap Delay"] },
+    Step = 0.1,
+    Callback = function(Value)
+        Config["Swap Delay"] = Value
+        SaveSettings()
+    end,
+})
+
 local StatusSection = SettingTab:Section({ Title = "Status", Icon = "activity", Opened = true })
 
 local StatusParagraph = StatusSection:Paragraph({
@@ -2213,7 +2588,6 @@ pcall(function()
 end)
 
 return State
-
 
 
 
