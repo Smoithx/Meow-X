@@ -80,6 +80,10 @@ local DefaultConfig = {
     ["Keep Ores"] = 0,
     ["Auto Sell Armor"] = false,
     ["Sell Armor Rarities"] = { "Common" },
+    ["Auto Forge"] = false,
+    ["Forge Type"] = "Weapon",
+    ["Forge Ores"] = { "", "", "", "" },
+    ["Forge Counts"] = { 0, 0, 0, 0 },
 }
 
 Config = Config or {}
@@ -199,6 +203,209 @@ local InventoryState = {
     OresNote = "พร้อม",
     ArmorNote = "พร้อม",
 }
+
+-- FORGE
+
+local DataUtil = Framework.Modules.DataUtil
+local ResOres = require(ReplicatedStorage:WaitForChild("Configs"):WaitForChild("ResOres"))
+local ForgeRF = ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Gameplay")
+    :WaitForChild("EquipmentSystem"):WaitForChild("ForgeRF", 10)
+
+local FORGE_SLOTS = 4
+local FORGE_MIN_ORES = 3
+local FORGE_MAX_PER_SLOT = 31
+local FORGE_QTE_RATING = 15
+local FORGE_QTE_TIMEOUT = 8
+local FORGE_RETRY_DELAY = 2
+
+local ForgeOreIDs = {}
+for _, ID in ipairs(ResOres.__index) do
+    table.insert(ForgeOreIDs, ID)
+end
+
+local ForgeState = {
+    Busy = false,
+    Forged = 0,
+    Last = "-",
+    Note = "พร้อม",
+}
+
+-- A config written before the recipe keys existed has the wrong shape, so every
+-- slot is forced back into a string/number pair here instead of being trusted.
+local function NormalizeForgeConfig()
+    if type(Config["Forge Ores"]) ~= "table" then
+        Config["Forge Ores"] = {}
+    end
+    if type(Config["Forge Counts"]) ~= "table" then
+        Config["Forge Counts"] = {}
+    end
+    if Config["Forge Type"] ~= "Armor" then
+        Config["Forge Type"] = "Weapon"
+    end
+    for Index = 1, FORGE_SLOTS do
+        local ID = Config["Forge Ores"][Index]
+        if type(ID) ~= "string" or not table.find(ForgeOreIDs, ID) then
+            Config["Forge Ores"][Index] = ""
+        end
+        local Count = math.floor(tonumber(Config["Forge Counts"][Index]) or 0)
+        Config["Forge Counts"][Index] = math.clamp(Count, 0, FORGE_MAX_PER_SLOT)
+    end
+end
+
+NormalizeForgeConfig()
+
+local function GetForgeRecipe()
+    local Ores, Total = {}, 0
+    for Index = 1, FORGE_SLOTS do
+        local ID = Config["Forge Ores"][Index]
+        local Count = Config["Forge Counts"][Index]
+        if type(ID) == "string" and ID ~= "" and Count > 0 then
+            Ores[ID] = (Ores[ID] or 0) + Count
+            Total = Total + Count
+        end
+    end
+    return Ores, Total
+end
+
+local function GetForgeMultiplier(Ores, Total)
+    if Total <= 0 then
+        return 0
+    end
+    local Weighted = 0
+    for ID, Count in pairs(Ores) do
+        local Def = ForgeUtil:GetDef(ID)
+        Weighted = Weighted + (Def and Def.ValueMultiplier or 1) * Count
+    end
+    return Weighted / Total
+end
+
+local function DescribeForgeResult(Result)
+    if type(Result) ~= "table" or not Result.ID then
+        return "ไม่ทราบผล"
+    end
+    local Rarity = EquipmentUtil:GetOreRarity(Result.MaxOre)
+    return string.format(
+        "%s | %s | %s | Factor %.2f",
+        tostring(Result.ID),
+        tostring(Result.Class or Result.Type),
+        RarityNames[Rarity] or tostring(Rarity),
+        tonumber(Result.Factor) or 0
+    )
+end
+
+-- The client profile lags the server by a tick and a forge that just ended leaves
+-- its QTE table behind, so this is keyed off the UUID that existed before the ore
+-- drop instead of trusting whatever the cache currently holds.
+local function PlayQTE(Need, PreviousUUID)
+    local Deadline = os.clock() + FORGE_QTE_TIMEOUT
+    while os.clock() < Deadline do
+        local QTE = DataUtil:GetValue(LocalPlayer, { "Forge", "QTE" })
+        if QTE and QTE.UUID and QTE.UUID ~= PreviousUUID then
+            if (QTE.Times or 0) >= Need then
+                return true
+            end
+            ForgeRF:InvokeServer("QTE", { UUID = QTE.UUID, Rating = FORGE_QTE_RATING })
+        end
+        task.wait(0.05)
+    end
+    return false
+end
+
+local function WaitForgeClear()
+    local Deadline = os.clock() + FORGE_QTE_TIMEOUT
+    while os.clock() < Deadline do
+        if DataUtil:GetValue(LocalPlayer, { "Forge", "ForgeState" }) == nil then
+            return true
+        end
+        task.wait(0.05)
+    end
+    return false
+end
+
+local function RunForge()
+    if not WaitForgeClear() then
+        return false, "กำลังตีอยู่"
+    end
+
+    local Ores, Total = GetForgeRecipe()
+    if Total < FORGE_MIN_ORES then
+        return false, "ต้องใส่แร่รวมอย่างน้อย " .. FORGE_MIN_ORES .. " ชิ้น"
+    end
+
+    local Owned = ForgeUtil:GetOres(LocalPlayer)
+    for ID, Count in pairs(Ores) do
+        if (Owned[ID] or 0) < Count then
+            return false, "แร่ " .. ID .. " ไม่พอ"
+        end
+    end
+
+    local Previous = DataUtil:GetValue(LocalPlayer, { "Forge", "QTE" })
+    local PreviousUUID = Previous and Previous.UUID
+
+    local DropOk, Accepted, SkipQTE = pcall(function()
+        return ForgeRF:InvokeServer("DropOres", Ores, Config["Forge Type"], nil)
+    end)
+    if not DropOk or not Accepted then
+        return false, "ส่งแร่ไม่สำเร็จ"
+    end
+
+    if not SkipQTE then
+        -- The server derives its QTE count from the ore table that was just sent, so
+        -- the required count comes from Total rather than the lagging client profile.
+        if not PlayQTE(ForgeUtil:GetForgeQTE(Total).QT, PreviousUUID) then
+            return false, "เล่น QTE ไม่ครบ"
+        end
+    end
+
+    local FinishOk, Finished, Result = pcall(function()
+        return ForgeRF:InvokeServer("ForgeFinish")
+    end)
+    if not FinishOk or not Finished then
+        return false, "ตีไม่สำเร็จ"
+    end
+
+    pcall(function()
+        ForgeRF:InvokeServer("ForgeResult", true)
+    end)
+
+    -- Only LocalForgeBase clears this attribute and it never runs for a remote-driven
+    -- forge, so the interact prompt would stay dead without writing it back here.
+    LocalPlayer:SetAttribute("ForgeState", nil)
+    return true, Result
+end
+
+local function ForgeNow()
+    if ForgeState.Busy then
+        return false, "กำลังตีอยู่"
+    end
+
+    ForgeState.Busy = true
+    local CallOk, Ok, Result = pcall(RunForge)
+    ForgeState.Busy = false
+
+    if not CallOk then
+        ForgeState.Note = "ตีผิดพลาด: " .. tostring(Ok)
+        return false, ForgeState.Note
+    end
+    if not Ok then
+        ForgeState.Note = tostring(Result)
+        return false, ForgeState.Note
+    end
+
+    ForgeState.Forged = ForgeState.Forged + 1
+    ForgeState.Last = DescribeForgeResult(Result)
+    ForgeState.Note = string.format("ตีสำเร็จแล้ว %d ชิ้น", ForgeState.Forged)
+    return true, ForgeState.Last
+end
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if Config["Auto Forge"] then
+            local Ok = ForgeNow()
+            task.wait(Ok and 0.5 or FORGE_RETRY_DELAY)
+        end
+    end
+end)
 
 -- CONSTANTS
 
@@ -1510,6 +1717,149 @@ ArmorSection:Button({
     end,
 })
 
+-- FORGE UI
+
+local ForgeTab = Window:Tab({
+    Title = "Forge",
+    Icon = "hammer",
+})
+
+local AutoForgeSection = ForgeTab:Section({ Title = "Auto Forge", Icon = "flame", Opened = true })
+local ForgeStatus = AutoForgeSection:Paragraph({ Title = "สถานะ", Desc = ForgeState.Note })
+
+AutoForgeSection:Dropdown({
+    Title = "ประเภทที่ตี",
+    Values = { "Weapon", "Armor" },
+    Value = Config["Forge Type"],
+    Callback = function(Value)
+        Config["Forge Type"] = Value == "Armor" and "Armor" or "Weapon"
+        SaveSettings()
+    end,
+})
+
+AutoForgeSection:Toggle({
+    Title = "Auto Forge",
+    Desc = "ตีวนอัตโนมัติเมื่อแร่ในสูตรครบ พร้อมเล่น QTE ให้เอง",
+    Value = Config["Auto Forge"],
+    Callback = function(Value)
+        Config["Auto Forge"] = Value and true or false
+        ForgeState.Note = Config["Auto Forge"] and "เริ่ม Auto Forge" or "หยุด Auto Forge"
+        SaveSettings()
+    end,
+})
+
+local RecipeSection = ForgeTab:Section({ Title = "สูตรแร่ 4 ช่อง", Icon = "gem", Opened = true })
+RecipeSection:Paragraph({
+    Title = "วิธีใช้",
+    Desc = "เลือกแร่ต่อช่อง ช่องละไม่เกิน " .. FORGE_MAX_PER_SLOT
+        .. " ชิ้น และรวมกันอย่างน้อย " .. FORGE_MIN_ORES .. " ชิ้น",
+})
+
+local ForgeSlotDropdowns, ForgeSlotSliders = {}, {}
+
+for Slot = 1, FORGE_SLOTS do
+    local Saved = Config["Forge Ores"][Slot]
+
+    ForgeSlotDropdowns[Slot] = RecipeSection:Dropdown({
+        Title = "ช่อง " .. Slot .. " แร่",
+        Values = ForgeOreIDs,
+        Value = Saved ~= "" and Saved or nil,
+        Callback = function(Value)
+            Config["Forge Ores"][Slot] = type(Value) == "string" and Value or ""
+            SaveSettings()
+        end,
+    })
+
+    ForgeSlotSliders[Slot] = RecipeSection:Slider({
+        Title = "ช่อง " .. Slot .. " จำนวน",
+        Value = { Min = 0, Max = FORGE_MAX_PER_SLOT, Default = Config["Forge Counts"][Slot] },
+        Step = 1,
+        Callback = function(Value)
+            Config["Forge Counts"][Slot] = math.clamp(math.floor(tonumber(Value) or 0), 0, FORGE_MAX_PER_SLOT)
+            SaveSettings()
+        end,
+    })
+end
+
+local ForgeActionSection = ForgeTab:Section({ Title = "Actions", Icon = "zap", Opened = true })
+local ForgeResultParagraph = ForgeActionSection:Paragraph({ Title = "ผลครั้งล่าสุด", Desc = ForgeState.Last })
+
+ForgeActionSection:Button({
+    Title = "ตีตอนนี้ 1 ครั้ง",
+    Icon = "hammer",
+    Callback = function()
+        task.spawn(function()
+            local Ok, Message = ForgeNow()
+            WindUI:Notify({
+                Title = Ok and "ตีสำเร็จ" or "ตีไม่สำเร็จ",
+                Content = Message,
+                Duration = 6,
+            })
+        end)
+    end,
+})
+
+ForgeActionSection:Button({
+    Title = "เติมสูตรจากแร่ที่ดีที่สุด",
+    Desc = "เรียงตามตัวคูณคุณภาพ แล้วใส่ช่องละ " .. FORGE_MAX_PER_SLOT .. " ชิ้น",
+    Callback = function()
+        local Picked = {}
+        for ID, Count in pairs(ForgeUtil:GetOres(LocalPlayer)) do
+            local Def = ForgeUtil:GetDef(ID)
+            if Def and type(Count) == "number" and Count > 0 then
+                table.insert(Picked, { ID = ID, Count = Count, Value = Def.ValueMultiplier or 1 })
+            end
+        end
+        table.sort(Picked, function(A, B)
+            if A.Value == B.Value then
+                return A.Count > B.Count
+            end
+            return A.Value > B.Value
+        end)
+
+        for Slot = 1, FORGE_SLOTS do
+            local Entry = Picked[Slot]
+            local ID = Entry and Entry.ID or ""
+            local Amount = Entry and math.min(FORGE_MAX_PER_SLOT, Entry.Count) or 0
+            -- Select and Set both re-run the element callbacks, so the config is written after them.
+            ForgeSlotDropdowns[Slot]:Select(ID ~= "" and ID or nil)
+            ForgeSlotSliders[Slot]:Set(Amount)
+            Config["Forge Ores"][Slot] = ID
+            Config["Forge Counts"][Slot] = Amount
+        end
+
+        SaveSettings()
+        WindUI:Notify({ Title = "Forge", Content = "เติมสูตรจากแร่ที่ดีที่สุดแล้ว", Duration = 4 })
+    end,
+})
+
+ForgeActionSection:Button({
+    Title = "ล้างสูตร",
+    Callback = function()
+        for Slot = 1, FORGE_SLOTS do
+            ForgeSlotDropdowns[Slot]:Select(nil)
+            ForgeSlotSliders[Slot]:Set(0)
+            Config["Forge Ores"][Slot] = ""
+            Config["Forge Counts"][Slot] = 0
+        end
+        SaveSettings()
+        WindUI:Notify({ Title = "Forge", Content = "ล้างสูตรแล้ว", Duration = 4 })
+    end,
+})
+
+local function UpdateForgeParagraph()
+    local Ores, Total = GetForgeRecipe()
+    ForgeStatus:SetDesc(string.format(
+        "%s\nประเภท %s | รวม %d ชิ้น | ตัวคูณ %.2f\nตีสำเร็จ %d ชิ้น",
+        ForgeState.Note,
+        Config["Forge Type"],
+        Total,
+        GetForgeMultiplier(Ores, Total),
+        ForgeState.Forged
+    ))
+    ForgeResultParagraph:SetDesc(ForgeState.Last)
+end
+
 -- Join
 
 local JoinSection = JoinTab:Section({ Title = "Dungeon Select", Icon = "map", Opened = true })
@@ -1823,6 +2173,7 @@ task.spawn(function()
         pcall(function()
             OreStatus:SetDesc(InventoryState.OresNote)
             ArmorStatus:SetDesc(InventoryState.ArmorNote)
+            UpdateForgeParagraph()
             ReadRound()
 
             local Alive = #GetEnemyList()
