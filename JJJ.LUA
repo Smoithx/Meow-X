@@ -2874,77 +2874,7 @@ function f34(p32, p33)
   end)
 end
 
-task["spawn"](function()
-  if not (listfiles and readfile) then
-    return
-  end
-
-  local v345 = "suji-obf"
-  local v346 = "lx7b"
-
-  local v347 = {
-    "", ".",
-    "workspace", "autoexec",
-    "scripts", "Suij",
-  }
-
-  local count9, sub4 = 0, nil
-
-  while #v347 > 0 and count9 < 250 do
-    local v348, v349 = pcall(listfiles, (table["remove"](v347, 1)))
-
-    if v348 and type(v349) == "table" then
-      for index9, value5 in ipairs(v349) do
-        if count9 >= 250 then
-          break
-        end
-
-        count9 = count9 + 1
-
-        if isfolder and pcall(isfolder, value5) and isfolder(value5) then
-          v347[#v347 + 1] = value5
-        else
-          local lower = tostring(value5):lower()
-
-          if lower:find("%.luau?$")
-            or lower:find("%.txt$")
-            or lower:find("%.json$")
-            or lower:find("%.log$")
-            or lower:find("%.dat$") then
-            local v350, v351 = pcall(readfile, value5)
-
-            if v350 and type(v351) == "string"
-              and (v351:find(v345, 1, true) or v351:find(v346, 1, true)) then
-              sub4 = tostring(value5):sub(-48)
-
-              pcall(function()
-                if delfile then
-                  delfile(value5)
-                end
-              end)
-            end
-          end
-        end
-      end
-    end
-  end
-
-  if sub4 then
-    pcall(function()
-      f29(v57, {
-        ["hwid"] = v335,
-        ["hw2"] = v336,
-        ["uid"] = v337,
-        ["sig"] = f7(f8(v52, "claim" .. v335
-          .. (v336 or ""))),
-        ["game"] = _G["SUJI_GAME"],
-        ["placeId"] = game["PlaceId"],
-        ["universeId"] = game["GameId"],
-        ["hk"] = "dump:" .. sub4,
-      })
-    end)
-  end
-end)
+task["spawn"](function() end) -- __suji_scan_disabled
 
 local v352 = nil
 
