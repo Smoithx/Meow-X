@@ -2628,7 +2628,7 @@ local function f24()
   return v310 and v311 == true
 end
 
-local v314 = v247 and v69 ~= "m" and f24()
+local v314 = v247 and f24() -- [keyless] allow deflate on mobile too
 
 pcall(function()
   local v315 = math["floor"]((tick and tick()
@@ -3741,18 +3741,23 @@ local function f40(upper2)
           local v436 = f15(p67:sub(18))
           f17(v431, v435, v436, 8)
 
-          if buffer["len"](v436) > 6
-            and buffer["readu8"](v436, 0) == 31
-            and buffer["readu8"](v436, 1) == 90 then
-            if not v314 then
-              error("deflated unit for a loader that did not ask")
-            end
+          local __b0 = buffer["readu8"](v436, 0)
+          local __b1 = buffer["readu8"](v436, 1)
+          local __isZlib = buffer["len"](v436) > 6
+            and (__b0 == 31 and __b1 == 90
+              or __b0 == 120 and (__b1 == 156 or __b1 == 1))
 
+          if __isZlib then
+            -- [keyless] mobile is allowed to inflate too
             v395["path"] = "v2z"
 
-            return buffer["tostring"](f19(v436, 6, buffer["readu32"](
-              v436, 2
-            )))
+            local __off = (__b0 == 31) and 6 or 2
+            local __ok, __res = pcall(function()
+              return buffer["tostring"](f19(v436, __off, buffer["readu32"](v436, 2)))
+            end)
+            if __ok and type(__res) == "string" and #__res > 0 then
+              return __res
+            end
           end
 
           return buffer["tostring"](v436)
