@@ -514,8 +514,8 @@ function Library:CreateWindow(Setting)
 	}
 	uigradient.Rotation = 90
 	uigradient.Transparency = NumberSequence.new{
-		NumberSequenceKeypoint.new(0, 0.92),
-		NumberSequenceKeypoint.new(1, 0.92)
+		NumberSequenceKeypoint.new(0, 0.04),
+		NumberSequenceKeypoint.new(1, 0.10)
 	}
 
 	getgenv().ReadyForGuiLoaded = true
