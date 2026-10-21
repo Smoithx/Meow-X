@@ -463,7 +463,6 @@ function Library:CreateWindow(Setting)
 	local UICorner = Instance.new("UICorner")
 	local ControlList = Instance.new("ScrollingFrame")
 	local UIListLayout = Instance.new("UIListLayout")
-	local ControlTitle = Instance.new("TextLabel")
 	local MainPage = Instance.new("Frame")
 	local UIPage = Instance.new("UIPageLayout")
 	local Concacontainer = Instance.new("Frame")
@@ -571,8 +570,8 @@ function Library:CreateWindow(Setting)
 	TextLabelMain.Name = "TextLabelMain"
 	TextLabelMain.Parent = TopMain
 	TextLabelMain.BackgroundTransparency = 1.000
-	TextLabelMain.Position = UDim2.new(0, 56, 0, 4)
-	TextLabelMain.Size = UDim2.new(1, -110, 0, 24)
+	TextLabelMain.Position = UDim2.new(0, 70, 0, 4)
+	TextLabelMain.Size = UDim2.new(1, -124, 0, 24)
 	TextLabelMain.Font = Enum.Font.GothamBold
 	TextLabelMain.Text = tostring(TitleNameMain)
 	TextLabelMain.TextSize = 19.000
@@ -583,8 +582,8 @@ function Library:CreateWindow(Setting)
 	local SubtitleLabel = Instance.new("TextLabel", TopMain)
 	SubtitleLabel.Name = "SubtitleLabel"
 	SubtitleLabel.BackgroundTransparency = 1.000
-	SubtitleLabel.Position = UDim2.new(0, 56, 0, 27)
-	SubtitleLabel.Size = UDim2.new(1, -110, 0, 18)
+	SubtitleLabel.Position = UDim2.new(0, 70, 0, 27)
+	SubtitleLabel.Size = UDim2.new(1, -124, 0, 18)
 	SubtitleLabel.Font = Enum.Font.GothamBold
 	SubtitleLabel.TextSize = 14.000
 	SubtitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
@@ -624,8 +623,8 @@ function Library:CreateWindow(Setting)
 	ControlList.BackgroundTransparency = 1.000
 	ControlList.BorderColor3 = Color3.fromRGB(27, 42, 53)
 	ControlList.BorderSizePixel = 0
-	ControlList.Position = UDim2.new(0, 0, 0, 30)
-	ControlList.Size = UDim2.new(1, -5, 1, -30)
+	ControlList.Position = UDim2.new(0, 5, 0, 5)
+	ControlList.Size = UDim2.new(1, -10, 1, -10)
 	ControlList.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
 	ControlList.CanvasSize = UDim2.new(0, 0, 0, 0)
 	ControlList.ScrollBarThickness = 5
@@ -635,66 +634,6 @@ function Library:CreateWindow(Setting)
 	UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	UIListLayout.Padding = UDim.new(0, 5)
 
-	ControlTitle.Name = "GUITextColor"
-	ControlTitle.Parent = PageControl
-	ControlTitle.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
-	ControlTitle.BackgroundTransparency = 1.000
-	ControlTitle.Position = UDim2.new(0, 5, 0, 0)
-	ControlTitle.Size = UDim2.new(1, 0, 0, 25)
-	ControlTitle.Font = Enum.Font.GothamBold
-	ControlTitle.Text = TitleNameMain
-	ControlTitle.TextSize = 16.000
-	ControlTitle.TextXAlignment = Enum.TextXAlignment.Left
-	ControlTitle.TextColor3 = getgenv().UIColor["GUI Text Color"]
-
-	local PageSearch = Instance.new("Frame")
-	local PageSearchCorner = Instance.new("UICorner")
-	local SearchFrame = Instance.new("Frame")
-	local SearchIcon = Instance.new("ImageLabel")
-	local SearchBox = Instance.new("TextBox")
-
-	PageSearch.Name = "PageSearch"
-	PageSearch.Parent = PageControl
-	PageSearch.AnchorPoint = Vector2.new(1, 0)
-	PageSearch.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
-	PageSearch.Position = UDim2.new(1, -5, 0, 5)
-	PageSearch.Size = UDim2.new(0, 190, 0, 25)
-	PageSearch.ClipsDescendants = true
-
-	PageSearchCorner.Parent = PageSearch
-	PageSearchCorner.CornerRadius = UDim.new(0, 4)
-
-	SearchFrame.Name = "SearchFrame"
-	SearchFrame.Parent = PageSearch
-	SearchFrame.BackgroundColor3 = Color3.fromRGB(163, 162, 165)
-	SearchFrame.BackgroundTransparency = 1
-	SearchFrame.Size = UDim2.new(0, 25, 1, 0)
-
-	SearchIcon.Name = "SearchIcon"
-	SearchIcon.Parent = SearchFrame
-	SearchIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	SearchIcon.BackgroundColor3 = Color3.fromRGB(163, 162, 165)
-	SearchIcon.BackgroundTransparency = 1
-	SearchIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-	SearchIcon.Size = UDim2.new(0, 16, 0, 16)
-	SearchIcon.Image = "rbxassetid://8154282545"
-	SearchIcon.ImageColor3 = Color3.fromRGB(240, 240, 230)
-
-    SearchBox.Name = "SearchBox"
-    SearchBox.Parent = PageSearch
-    SearchBox.Active = true
-    SearchBox.BackgroundColor3 = Color3.fromRGB(163, 162, 165)
-    SearchBox.BackgroundTransparency = 1
-    SearchBox.CursorPosition = -1
-    SearchBox.Position = UDim2.new(0, 30, 0, 0)
-    SearchBox.Size = UDim2.new(1, -30, 1, 0)
-    SearchBox.Font = Enum.Font.GothamBold
-    SearchBox.PlaceholderColor3 = Color3.fromRGB(170, 170, 160)
-    SearchBox.PlaceholderText = "Search section..."
-    SearchBox.Text = ""
-    SearchBox.TextColor3 = Color3.fromRGB(235, 235, 230)
-    SearchBox.TextSize = 14
-    SearchBox.TextXAlignment = Enum.TextXAlignment.Left
 
 	MainPage.Name = "MainPage"
 	MainPage.Parent = Concacmain
@@ -730,136 +669,6 @@ function Library:CreateWindow(Setting)
 	Shadow.ScaleType = Enum.ScaleType.Slice
 	Shadow.SliceCenter = Rect.new(24, 24, 276, 276)
 
-    -- Thêm biến để lưu thông tin section
-    local sectionInfo = {}
-    
-    -- Tạo hàm GlobalSearch nếu chưa tồn tại
-    if not GlobalSearch then
-        GlobalSearch = function(searchText)
-            searchText = string.lower(searchText)
-            
-            if searchText == "" then
-                -- Hiển thị tất cả như cũ
-                for _, control in pairs(getgenv().AllControls) do
-                    control.TabButton.Visible = true
-                    control.Section.Visible = true
-                    control.Element.Visible = true
-                end
-                -- Hiển thị tất cả tab
-                for _, tab in pairs(ControlList:GetChildren()) do
-                    if not tab:IsA('UIListLayout') then
-                        tab.Visible = true
-                    end
-                end
-                return
-            end
-            
-            -- Ẩn tất cả trước
-            for _, control in pairs(getgenv().AllControls) do
-                control.Section.Visible = false
-                control.Element.Visible = false
-            end
-            
-            -- Ẩn tất cả tab
-            for _, tab in pairs(ControlList:GetChildren()) do
-                if not tab:IsA('UIListLayout') then
-                    tab.Visible = false
-                end
-            end
-            
-            -- Tạo bản đồ section
-            local sectionsWithElements = {}
-            local elementsInSection = {}
-            
-            -- Phân tích từng control
-            for _, control in pairs(getgenv().AllControls) do
-                local elementName = string.lower(control.Name or "")
-                local sectionName = string.lower(control.SectionName or "")
-                
-                -- Kiểm tra phần tử (sử dụng string.find thay vì string.match)
-                local elementFound = string.find(elementName, searchText, 1, true) ~= nil
-                -- Kiểm tra section
-                local sectionFound = string.find(sectionName, searchText, 1, true) ~= nil
-                
-                -- Tạo bản đồ section
-                if not elementsInSection[control.Section] then
-                    elementsInSection[control.Section] = {}
-                end
-                table.insert(elementsInSection[control.Section], {
-                    control = control,
-                    elementFound = elementFound,
-                    sectionFound = sectionFound
-                })
-                
-                -- Đánh dấu section có phần tử khớp
-                if elementFound then
-                    sectionsWithElements[control.Section] = true
-                end
-            end
-            
-            -- Xử lý hiển thị
-            local foundTabs = {}
-            
-            for section, elements in pairs(elementsInSection) do
-                local shouldShowSection = false
-                local hasElementMatch = false
-                
-                -- Kiểm tra section có khớp không
-                for _, elementInfo in ipairs(elements) do
-                    if elementInfo.sectionFound then
-                        shouldShowSection = true
-                    end
-                    if elementInfo.elementFound then
-                        hasElementMatch = true
-                    end
-                end
-                
-                -- Logic hiển thị
-                for _, elementInfo in ipairs(elements) do
-                    local control = elementInfo.control
-                    
-                    if elementInfo.elementFound then
-                        -- Phần tử khớp: hiển thị phần tử
-                        control.Element.Visible = true
-                        
-                        -- Nếu section cũng khớp hoặc có phần tử khớp: hiện section
-                        if elementInfo.sectionFound or hasElementMatch then
-                            control.Section.Visible = true
-                        end
-                        
-                        foundTabs[control.TabName] = true
-                        control.TabButton.Visible = true
-                    elseif elementInfo.sectionFound and not hasElementMatch then
-                        -- Section khớp nhưng không có phần tử khớp: chỉ hiện section
-                        control.Section.Visible = true
-                        control.Element.Visible = false
-                        
-                        foundTabs[control.TabName] = true
-                        control.TabButton.Visible = true
-                    end
-                end
-            end
-            
-            -- Hiển thị các tab có kết quả
-            for tabName, _ in pairs(foundTabs) do
-                for _, tab in pairs(ControlList:GetChildren()) do
-                    if not tab:IsA('UIListLayout') and string.find(tab.Name, tabName, 1, true) then
-                        tab.Visible = true
-                    end
-                end
-            end
-            
-            -- Nếu không tìm thấy gì cả, hiển thị thông báo
-            if not next(foundTabs) then
-                -- Có thể thêm thông báo "Không tìm thấy kết quả" ở đây nếu muốn
-            end
-        end
-    end
-    
-    -- Kết nối sự kiện search (giữ nguyên)
-    SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        GlobalSearch(SearchBox.Text)
-    end)
 
 	local Main_Function = {}
 
@@ -870,7 +679,6 @@ function Library:CreateWindow(Setting)
 	function Main_Function:AddTab(PageName)
 
 		local Page_Name = tostring(PageName)
-		local Page_Title = Page_Name
 
 		LayoutOrder = LayoutOrder + 1
 		LayoutOrderBut = LayoutOrderBut + 1
@@ -957,7 +765,6 @@ function Library:CreateWindow(Setting)
 
 		local PageContainer = Instance.new("Frame")
 		local UICorner = Instance.new("UICorner")
-		local PageTitle = Instance.new("TextLabel")
 		local PageList = Instance.new("ScrollingFrame")
 		local Pagelistlayout = Instance.new("UIListLayout")
 
@@ -974,18 +781,6 @@ function Library:CreateWindow(Setting)
 		UICorner.CornerRadius = UDim.new(0, 4)
 		UICorner.Parent = PageContainer
 
-		PageTitle.Name = "GUITextColor"
-		PageTitle.Parent = PageContainer
-		PageTitle.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
-		PageTitle.BackgroundTransparency = 1.000
-		PageTitle.Position = UDim2.new(0, 5, 0, 0)
-		PageTitle.Size = UDim2.new(1, 0, 0, 28)
-		PageTitle.Font = Enum.Font.GothamBold
-		PageTitle.Text = Page_Title
-		PageTitle.TextSize = 18.000
-		PageTitle.TextXAlignment = Enum.TextXAlignment.Left
-		PageTitle.TextColor3 = getgenv().UIColor["GUI Text Color"]
-
 		PageList.Name = "PageList"
 		PageList.Parent = PageContainer
 		PageList.Active = true
@@ -993,8 +788,8 @@ function Library:CreateWindow(Setting)
 		PageList.BackgroundTransparency = 1.000
 		PageList.BorderColor3 = Color3.fromRGB(27, 42, 53)
 		PageList.BorderSizePixel = 0
-		PageList.Position = UDim2.new(0, 5, 0, 33)
-		PageList.Size = UDim2.new(1, -10, 1, -33)
+		PageList.Position = UDim2.new(0, 5, 0, 5)
+		PageList.Size = UDim2.new(1, -10, 1, -10)
 		PageList.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
 		PageList.ScrollBarThickness = 5
 		PageList.TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
@@ -1007,110 +802,6 @@ function Library:CreateWindow(Setting)
 		Pagelistlayout.Padding = UDim.new(0, 5)
 		Pagelistlayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 			PageList.CanvasSize = UDim2.new(0, 0, 0, Pagelistlayout.AbsoluteContentSize.Y)
-		end)
-
-		local PageSearch = Instance.new("Frame")
-		local PageSearchCorner = Instance.new("UICorner")
-		local SearchFrame = Instance.new("Frame")
-		local SearchIcon = Instance.new("ImageLabel")
-		local SearchButton = Instance.new("TextButton")
-		local SearchBox = Instance.new("TextBox")
-
-		PageSearch.Name = "Page Search"
-		PageSearch.Parent = PageContainer
-		PageSearch.AnchorPoint = Vector2.new(1, 0)
-		PageSearch.BackgroundColor3 = getgenv().UIColor["Background 2 Color"]
-		PageSearch.Position = UDim2.new(1, -5, 0, 5)
-		PageSearch.Size = UDim2.new(0, 20, 0, 20)
-		PageSearch.ClipsDescendants = true
-
-		PageSearchCorner.CornerRadius = UDim.new(0, 2)
-		PageSearchCorner.Name = "PageSearchCorner"
-		PageSearchCorner.Parent = PageSearch
-
-		SearchFrame.Name = "SearchFrame"
-		SearchFrame.Parent = PageSearch
-		SearchFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		SearchFrame.BackgroundTransparency = 1.000
-		SearchFrame.Size = UDim2.new(0, 20, 0, 20)
-
-		SearchIcon.Name = "SearchIcon"
-		SearchIcon.Parent = SearchFrame
-		SearchIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-		SearchIcon.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		SearchIcon.BackgroundTransparency = 1.000
-		SearchIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-		SearchIcon.Size = UDim2.new(0, 16, 0, 16)
-		SearchIcon.Image = "rbxassetid://8154282545"
-		SearchIcon.ImageColor3 = getgenv().UIColor["Search Icon Color"]
-
-		SearchButton.Name = "Search Button"
-		SearchButton.Parent = SearchFrame
-		SearchButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		SearchButton.BackgroundTransparency = 1.000
-		SearchButton.Size = UDim2.new(1, 0, 1, 0)
-		SearchButton.Font = Enum.Font.SourceSans
-		SearchButton.Text = ""
-		SearchButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-		SearchButton.TextSize = 14.000
-
-		SearchBox.Name = "Search Box"
-		SearchBox.Parent = PageSearch
-		SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		SearchBox.BackgroundTransparency = 1.000
-		SearchBox.Position = UDim2.new(0, 30, 0, 0)
-		SearchBox.Size = UDim2.new(1, -30, 1, 0)
-		SearchBox.Font = Enum.Font.GothamBold
-		SearchBox.Text = ""
-		SearchBox.TextSize = 14.000
-		SearchBox.TextXAlignment = Enum.TextXAlignment.Left
-		SearchBox.PlaceholderText = "Search Section name"
-		SearchBox.PlaceholderColor3 = getgenv().UIColor["Placeholder Text Color"]
-		SearchBox.TextColor3 = getgenv().UIColor["Text Color"]
-		
-		local Openned = false 
-
-		SearchButton.MouseEnter:Connect(function()
-			TweenService:Create(SearchIcon, TweenInfo.new(getgenv().UIColor["Tween Animation 3 Speed"]), {
-				ImageColor3 = getgenv().UIColor["Search Icon Highlight Color"]
-			}):Play()
-		end)
-
-		SearchButton.MouseLeave:Connect(function()
-			TweenService:Create(SearchIcon, TweenInfo.new(getgenv().UIColor["Tween Animation 3 Speed"]), {
-				ImageColor3 = getgenv().UIColor["Search Icon Color"]
-			}):Play()
-		end)
-
-		SearchButton.MouseButton1Click:Connect(function()
-			Openned = not Openned
-			local size = Openned and UDim2.new(0, 175, 0, 20) or  UDim2.new(0, 20, 0, 20)
-			game.TweenService:Create(PageSearch, TweenInfo.new(getgenv().UIColor["Tween Animation 2 Speed"]), {
-				Size = size
-			}):Play()
-		end)
-
-		local function hideOtherFrame()
-			for i, v in next, PageList:GetChildren() do 
-				if not v:IsA('UIListLayout') then 
-					v.Visible = false
-				end
-			end
-		end
-		
-		local function showFrameName()
-			for i, v in pairs(PageList:GetChildren()) do
-				if not v:IsA('UIListLayout') then 
-					if string.find(string.lower(v.Name), string.lower(SearchBox.Text)) then 
-						v.Visible = true
-					end
-				end
-			end
-		end
-		
-		SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-			hideOtherFrame()
-			showFrameName()
 		end)
 
 		for i, v in pairs(ControlList:GetChildren()) do
