@@ -476,7 +476,7 @@ function Library:CreateWindow(Setting)
 	Main.BackgroundTransparency = 1.000
 	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 	Main.AnchorPoint = Vector2.new(0.5, 0.5)
-	Main.Size = UDim2.new(0, 700, 0, 446)
+	Main.Size = UDim2.new(0, 700, 0, 438)
 
 	makeDraggable(Main, Main)
 
@@ -529,8 +529,8 @@ function Library:CreateWindow(Setting)
 	Concacontainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Concacontainer.BackgroundTransparency = 1.000
 	Concacontainer.ClipsDescendants = true
-	Concacontainer.Position = UDim2.new(0, 0, 0, 61)
-	Concacontainer.Size = UDim2.new(1, 0, 1, -61)
+	Concacontainer.Position = UDim2.new(0, 0, 0, 53)
+	Concacontainer.Size = UDim2.new(1, 0, 1, -53)
 	
 	Concacmain.Name = "Concacmain"
 	Concacmain.Parent = Concacontainer
@@ -543,7 +543,7 @@ function Library:CreateWindow(Setting)
 	TopMain.Parent = MainContainer
 	TopMain.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	TopMain.BackgroundTransparency = 1.000
-	TopMain.Size = UDim2.new(1, 0, 0, 56)
+	TopMain.Size = UDim2.new(1, 0, 0, 48)
 	
 	local TopStroke = Instance.new("Frame", TopMain)
 	TopStroke.Name = "TopStroke"
@@ -553,20 +553,25 @@ function Library:CreateWindow(Setting)
 	TopStroke.Position = UDim2.new(0, 0, 1, -1)
 	TopStroke.Size = UDim2.new(1, 0, 0, 1)
 	
-	Ruafimg.Name = "Ruafimg"
-	Ruafimg.Parent = TopMain
-	Ruafimg.BackgroundTransparency = 1.000
-	Ruafimg.Position = UDim2.new(0, 10, 0, 11)
-	Ruafimg.Size = UDim2.new(0, 34, 0, 34)
-	Ruafimg.Image = getgenv().UIColor["Logo Image"]
+	-- crop the logo into a square window so the artwork fills the header cell
+	local LogoHolder = Instance.new("Frame", TopMain)
+	LogoHolder.Name = "LogoHolder"
+	LogoHolder.BackgroundTransparency = 1.000
+	LogoHolder.ClipsDescendants = true
+	LogoHolder.Position = UDim2.new(0, 7, 0, 3)
+	LogoHolder.Size = UDim2.new(0, 42, 0, 42)
 
-	local LogoCorner = Instance.new("UICorner", Ruafimg)
-	LogoCorner.CornerRadius = UDim.new(0, 6)
+	Ruafimg.Name = "Ruafimg"
+	Ruafimg.Parent = LogoHolder
+	Ruafimg.BackgroundTransparency = 1.000
+	Ruafimg.Position = UDim2.new(0, -15, 0, -15)
+	Ruafimg.Size = UDim2.new(0, 72, 0, 72)
+	Ruafimg.Image = getgenv().UIColor["Logo Image"]
 
 	TextLabelMain.Name = "TextLabelMain"
 	TextLabelMain.Parent = TopMain
 	TextLabelMain.BackgroundTransparency = 1.000
-	TextLabelMain.Position = UDim2.new(0, 54, 0, 7)
+	TextLabelMain.Position = UDim2.new(0, 56, 0, 4)
 	TextLabelMain.Size = UDim2.new(1, -110, 0, 24)
 	TextLabelMain.Font = Enum.Font.GothamBold
 	TextLabelMain.Text = tostring(TitleNameMain)
@@ -578,7 +583,7 @@ function Library:CreateWindow(Setting)
 	local SubtitleLabel = Instance.new("TextLabel", TopMain)
 	SubtitleLabel.Name = "SubtitleLabel"
 	SubtitleLabel.BackgroundTransparency = 1.000
-	SubtitleLabel.Position = UDim2.new(0, 54, 0, 30)
+	SubtitleLabel.Position = UDim2.new(0, 56, 0, 27)
 	SubtitleLabel.Size = UDim2.new(1, -110, 0, 18)
 	SubtitleLabel.Font = Enum.Font.GothamBold
 	SubtitleLabel.TextSize = 14.000
