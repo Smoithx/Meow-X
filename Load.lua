@@ -38,6 +38,7 @@ local T1UIColor = {
 	["Dropdown Icon Color"] = Color3.fromRGB(230, 230, 230),
 	["Dropdown Selected Color"] = Color3.fromRGB(255, 206, 27),
 	["Dropdown Selected Check Color"] = Color3.fromRGB(219, 177, 23),
+	["Dropdown Selected Text Color"] = Color3.fromRGB(20, 20, 20),
 	["Textbox Highlight Color"] = Color3.fromRGB(255, 206, 27),
 	["Box Highlight Color"] = Color3.fromRGB(255, 206, 27),
 	["Slider Line Color"] = Color3.fromRGB(255, 206, 27),
@@ -1230,7 +1231,7 @@ function Library:CreateWindow(Setting)
              ClickArea_1.BackgroundColor3 = Color3.fromRGB(255, 206, 27)
              ClickArea_1.Position = UDim2.new(1, -8,0.5, 0)
              ClickArea_1.Size = UDim2.new(0, 94,0, 30)
-             ClickArea_1.ClipsDescendants = true  -- THÃƒÅ M DÃƒâ€™NG NÃƒâ‚¬Y: NgÃ„Æ’n ripple trÃƒÂ n ra
+             ClickArea_1.ClipsDescendants = true
              
              UICorner_3.Parent = ClickArea_1
              UICorner_3.CornerRadius = UDim.new(0,12)
@@ -1281,10 +1282,8 @@ function Library:CreateWindow(Setting)
              Button_1.TextColor3 = Color3.fromRGB(240, 240, 240)
              Button_1.TextSize = 13
 
-             -- UIScale mÃ¡ÂºÂ·c Ã„â€˜Ã¡Â»â€¹nh
              UIScale_1.Scale = 1
              
-             -- HOVER (chÃ¡Â»â€° phÃƒÂ³ng to)
              local scaleHover = TweenService:Create(UIScale_1, TweenInfo.new(0.12, Enum.EasingStyle.Sine), { Scale = 1.05 })
              local scaleNormal = TweenService:Create(UIScale_1, TweenInfo.new(0.12, Enum.EasingStyle.Sine), { Scale = 1 })
              
@@ -1298,11 +1297,9 @@ function Library:CreateWindow(Setting)
              
                 Button_1.MouseButton1Down:Connect(function()
                     
-                    -- LÃ¡ÂºÂ¥y kÃƒÂ­ch thÃ†Â°Ã¡Â»â€ºc thÃ¡Â»Â±c tÃ¡ÂºÂ¿ cÃ¡Â»Â§a ClickArea
                     local w = ClickArea_1.AbsoluteSize.X
                     local h = ClickArea_1.AbsoluteSize.Y
                     
-                    -- TÃ¡ÂºÂ¡o ripple vÃ¡Â»â€ºi hÃƒÂ¬nh dÃ¡ÂºÂ¡ng bo gÃƒÂ³c giÃ¡Â»â€˜ng button (chÃ¡Â»Â¯ nhÃ¡ÂºÂ­t bo gÃƒÂ³c)
                     local ripple = Instance.new("Frame")
                     ripple.AnchorPoint = Vector2.new(0.5, 0.5)
                     ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -1312,12 +1309,10 @@ function Library:CreateWindow(Setting)
                     ripple.ZIndex = 20
                     ripple.Parent = ClickArea_1
                     
-                    -- TÃ¡ÂºÂ¡o UICorner cho ripple vÃ¡Â»â€ºi bo gÃƒÂ³c y hÃ¡Â»â€¡t button
                     local rippleCorner = Instance.new("UICorner")
-                    rippleCorner.CornerRadius = UICorner_3.CornerRadius -- LÃ¡ÂºÂ¥y gÃƒÂ³c bo tÃ¡Â»Â« button
+                    rippleCorner.CornerRadius = UICorner_3.CornerRadius
                     rippleCorner.Parent = ripple
                     
-                    -- Animation ripple mÃ¡Â»Å¸ rÃ¡Â»â„¢ng tÃ¡Â»Â« tÃƒÂ¢m ra Ã„â€˜Ã¡ÂºÂ§y Ã„â€˜Ã¡Â»Â§ button
                     local rippleTween = TweenService:Create(
                         ripple,
                         TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -1534,7 +1529,6 @@ function Library:CreateWindow(Setting)
                 ScrollContainerList.SortOrder = Enum.SortOrder.LayoutOrder
                 ScrollContainerList.Padding = UDim.new(0, 5)
                 
-                -- TÃ¡ÂºÂ¡o internal section Ã„â€˜Ã¡Â»Æ’ chÃ¡Â»Â©a cÃƒÂ¡c control
                 local InternalSection = Instance.new("Frame")
                 InternalSection.Name = "InternalSection"
                 InternalSection.Parent = ScrollContainer
@@ -1575,8 +1569,6 @@ function Library:CreateWindow(Setting)
                     end
                 end)
                 
-                -- TÃ¡ÂºÂ¡o dropdown section functions (CHÃ¡Â»Ë† CÃƒâ€œ SLIDER)
-                -- HÃƒâ‚¬M TÃ¡ÂºÂ O SLIDER (RÃ¡Â»ËœNG HÃ†Â N, SÃƒÂT VIÃ¡Â»â‚¬N)
                 function dropdownSectionFunction:AddSlider(Setting)
                     local TitleText = tostring(Setting.Text or Setting.Title) or ""
                     local minValue = tonumber(Setting.Min) or 0
@@ -1604,7 +1596,7 @@ function Library:CreateWindow(Setting)
                     SliderFrame.Parent = InternalSection
                     SliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
                     SliderFrame.BackgroundTransparency = 1.000
-                    SliderFrame.Size = UDim2.new(1, 0, 0, 50)  -- ChiÃ¡ÂºÂ¿m toÃƒÂ n bÃ¡Â»â„¢ chiÃ¡Â»Âu rÃ¡Â»â„¢ng
+                    SliderFrame.Size = UDim2.new(1, 0, 0, 50)
                     
                     SliderCorner.CornerRadius = UDim.new(0, 4)
                     SliderCorner.Name = "SliderCorner"
@@ -1614,7 +1606,7 @@ function Library:CreateWindow(Setting)
                     SliderBG.Parent = SliderFrame
                     SliderBG.AnchorPoint = Vector2.new(0.5, 0.5)
                     SliderBG.Position = UDim2.new(0.5, 0, 0.5, 0)
-                    SliderBG.Size = UDim2.new(1, -5, 1, 0)  -- ChiÃ¡ÂºÂ¿m gÃ¡ÂºÂ§n toÃƒÂ n bÃ¡Â»â„¢ (trÃ¡Â»Â« 5 pixel)
+                    SliderBG.Size = UDim2.new(1, -5, 1, 0)
                     SliderBG.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
                     SliderBG.BackgroundTransparency = 0.25
                     
@@ -1627,7 +1619,7 @@ function Library:CreateWindow(Setting)
                     SliderTitle.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
                     SliderTitle.BackgroundTransparency = 1.000
                     SliderTitle.Position = UDim2.new(0, 10, 0, 0)
-                    SliderTitle.Size = UDim2.new(0.65, -10, 0, 25)  -- Title chiÃ¡ÂºÂ¿m 65%
+                    SliderTitle.Size = UDim2.new(0.65, -10, 0, 25)
                     SliderTitle.Font = Enum.Font.GothamBlack
                     SliderTitle.Text = TitleText
                     SliderTitle.TextSize = 14.000
@@ -1639,7 +1631,7 @@ function Library:CreateWindow(Setting)
                     SliderBar.Parent = SliderFrame
                     SliderBar.AnchorPoint = Vector2.new(0.5, 0.5)
                     SliderBar.Position = UDim2.new(0.5, 0, 0.5, 14)
-                    SliderBar.Size = UDim2.new(0.9, 0, 0, 6)  -- Thanh slider rÃ¡Â»â„¢ng 90%
+                    SliderBar.Size = UDim2.new(0.9, 0, 0, 6)
                     SliderBar.BackgroundColor3 = getgenv().UIColor["Background 2 Color"]
                     
                     SliderButton.Name = "SliderButton"
@@ -1670,7 +1662,7 @@ function Library:CreateWindow(Setting)
                     Sliderboxframe.Parent = SliderFrame
                     Sliderboxframe.AnchorPoint = Vector2.new(1, 0)
                     Sliderboxframe.Position = UDim2.new(1, -10, 0, 5)
-                    Sliderboxframe.Size = UDim2.new(0.25, 0, 0, 25)  -- Textbox chiÃ¡ÂºÂ¿m 25%
+                    Sliderboxframe.Size = UDim2.new(0.25, 0, 0, 25)
                     Sliderboxframe.BackgroundColor3 = getgenv().UIColor["Background 2 Color"]
                     
                     Sliderbox.CornerRadius = UDim.new(0, 4)
@@ -1850,11 +1842,20 @@ function Library:CreateWindow(Setting)
 			function sectionFunction:AddDropdown(idk, Setting)
 				local Title = tostring(Setting.Text or Setting.Title or "")
 				local List = Setting.Values or {}
-				local Multi = Setting.Selected or Setting.Multi or false
+				local Multi = Setting.Multi == true or Setting.MultiSelect == true or Setting.Selected == true
 				local Callback = Setting.Callback
 				local Placeholder = tostring(Setting.SubText or Setting.Subtitle or "None")
 				local Default = Setting.Default
-				if type(Default) == "number" then
+				if Multi then
+					if type(Default) == "number" then
+						Default = { List[Default] }
+					elseif type(Default) == "string" then
+						Default = { Default }
+					end
+					if type(Default) ~= "table" then
+						Default = {}
+					end
+				elseif type(Default) == "number" then
 					Default = List[Default]
 				end
 
@@ -2003,8 +2004,10 @@ function Library:CreateWindow(Setting)
 				local MultiSelection = {}
 
 				if Multi then
-					if Default then
-						MultiSelection[Default] = true
+					for _, Name in ipairs(Default) do
+						if table.find(List, Name) then
+							MultiSelection[Name] = true
+						end
 					end
 				else
 					CurrentValue = Default
@@ -2032,9 +2035,23 @@ function Library:CreateWindow(Setting)
 					local Selected = GetSelectedText()
 					if Selected == nil or tostring(Selected) == "" then
 						SubTextLabel.Text = Placeholder
+						SubTextLabel.TextColor3 = getgenv().UIColor["Placeholder Text Color"]
 						return
 					end
-					SubTextLabel.Text = tostring(Selected)
+					local Text = tostring(Selected)
+					if Multi then
+						local Count = 0
+						for _, Name in ipairs(List) do
+							if MultiSelection[Name] then
+								Count = Count + 1
+							end
+						end
+						if Count > 2 then
+							Text = Count .. " selected"
+						end
+					end
+					SubTextLabel.Text = Text
+					SubTextLabel.TextColor3 = getgenv().UIColor["Text Color"]
 				end
 
 				local function ApplyFilter()
@@ -2086,7 +2103,7 @@ function Library:CreateWindow(Setting)
 						RowTitle.TextSize = 13.000
 						RowTitle.TextXAlignment = Enum.TextXAlignment.Left
 						RowTitle.TextTruncate = Enum.TextTruncate.AtEnd
-						RowTitle.TextColor3 = getgenv().UIColor["Text Color"]
+						RowTitle.TextColor3 = IsActive and getgenv().UIColor["Dropdown Selected Text Color"] or getgenv().UIColor["Text Color"]
 
 						local RowCheck = Instance.new("ImageLabel")
 						RowCheck.Name = "SampleItemCheck"
@@ -2165,6 +2182,19 @@ function Library:CreateWindow(Setting)
 					isbusy = state
 					if isbusy then
 						BuildItems()
+						local Limit = math.huge
+						local Node = DropdownFrame.Parent
+						while Node and Node ~= game do
+							if Node:IsA("GuiObject") and Node.ClipsDescendants then
+								Limit = Node.AbsolutePosition.Y + Node.AbsoluteSize.Y
+								break
+							end
+							Node = Node.Parent
+						end
+						local Space = Limit - (DropdownFrame.AbsolutePosition.Y + ClosedHeight) - 10
+						if Space == Space and Space > 0 then
+							ListHeight = math.clamp(Space, 86, 180)
+						end
 					end
 					TweenService:Create(Dropdownlisttt, TweenInfo.new(getgenv().UIColor["Tween Animation 2 Speed"]), {
 						Size = isbusy and UDim2.new(1, 0, 0, ListHeight) or UDim2.new(1, 0, 0, 0)
@@ -2184,14 +2214,18 @@ function Library:CreateWindow(Setting)
 					return isbusy
 				end
 
-				function dropdownFunction:SetValue(Value)
+				function dropdownFunction:SetValue(Value, State)
 					if Multi then
 						if table.find(List, Value) == nil then
 							return
 						end
-						MultiSelection[Value] = true
+						if State == false then
+							MultiSelection[Value] = nil
+						else
+							MultiSelection[Value] = true
+						end
 						if Callback then
-							Callback(Value, true)
+							Callback(Value, MultiSelection[Value] == true)
 						end
 					else
 						CurrentValue = Value
@@ -2214,6 +2248,18 @@ function Library:CreateWindow(Setting)
 						end
 					end
 					return Result
+				end
+
+				function dropdownFunction:Clear()
+					if Multi then
+						for Name in pairs(MultiSelection) do
+							MultiSelection[Name] = nil
+						end
+					else
+						CurrentValue = nil
+					end
+					RefreshSubText()
+					BuildItems()
 				end
 
 				function dropdownFunction:ClearText(Value)
@@ -2259,7 +2305,7 @@ function Library:CreateWindow(Setting)
 function sectionFunction:AddKeyBind(Setting, Callback)
     local TitleText = tostring(Setting.Title or Setting.Text) or ""
     local Default = Setting.Default or Setting.Key or "F"
-    local Mode = Setting.Mode or "Toggle" -- Hold hoÃ¡ÂºÂ·c Toggle
+    local Mode = Setting.Mode or "Toggle"
     local Callback = Setting.Callback or Callback or function() end
     
     local function GetKeyString(key)
@@ -2275,7 +2321,6 @@ function sectionFunction:AddKeyBind(Setting, Callback)
     local ToggleState = false
     local HoldActive = false
     
-    -- UI Elements (BÃ¡Â»Å½ ModeButton)
     local BindFrame = Instance.new("Frame")
     local BindCorner = Instance.new("UICorner")
     local BindBG = Instance.new("Frame")
