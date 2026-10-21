@@ -480,6 +480,32 @@ function Library:CreateWindow(Setting)
 	SubtitleLabel.TextColor3 = getgenv().UIColor["Text Color"]
 	SubtitleLabel.Text = (getgenv().MainDesc ~= "" and tostring(getgenv().MainDesc)) or "No Description"
 
+	-- player avatar in a circle, top right of the header
+	local AvatarHolder = Instance.new("Frame", TopMain)
+	AvatarHolder.Name = "AvatarHolder"
+	AvatarHolder.AnchorPoint = Vector2.new(1, 0.5)
+	AvatarHolder.BackgroundColor3 = getgenv().UIColor["Background 2 Color"]
+	AvatarHolder.BackgroundTransparency = 0.2
+	AvatarHolder.BorderSizePixel = 0
+	AvatarHolder.ClipsDescendants = true
+	AvatarHolder.Position = UDim2.new(1, -10, 0, 24)
+	AvatarHolder.Size = UDim2.new(0, 36, 0, 36)
+
+	local AvatarCorner = Instance.new("UICorner", AvatarHolder)
+	AvatarCorner.CornerRadius = UDim.new(1, 0)
+
+	local AvatarStroke = Instance.new("UIStroke", AvatarHolder)
+	AvatarStroke.Color = getgenv().UIColor["Border Color"]
+	AvatarStroke.Thickness = 2
+	AvatarStroke.Transparency = 0.15
+
+	local AvatarImage = Instance.new("ImageLabel", AvatarHolder)
+	AvatarImage.Name = "AvatarImage"
+	AvatarImage.BackgroundTransparency = 1
+	AvatarImage.Size = UDim2.new(1, 0, 1, 0)
+	AvatarImage.ScaleType = Enum.ScaleType.Crop
+	AvatarImage.Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(game.Players.LocalPlayer.UserId) .. "&w=150&h=150"
+
 	PageControl.Name = "Background1"
 	PageControl.Parent = Concacmain
 	PageControl.Position = UDim2.new(0, 5, 0, 5)
