@@ -14,7 +14,7 @@ local T1UIColor = {
 	["Border Color"] = Color3.fromRGB(255, 0, 0),
 	["Click Effect Color"] = Color3.fromRGB(230, 230, 230),
 	["Setting Icon Color"] = Color3.fromRGB(230, 230, 230),
-	["Logo Image"] = "rbxassetid://128185233852701",
+	["Logo Image"] = "rbxassetid://85591093437630",
 	["Search Icon Color"] = Color3.fromRGB(240, 240, 230),
 	["Search Icon Highlight Color"] = Color3.fromRGB(255, 0, 0),
 	["GUI Text Color"] = Color3.fromRGB(235, 235, 230),
@@ -441,7 +441,7 @@ function Library:CreateWindow(Setting)
 	TopStroke.Position = UDim2.new(0, 0, 1, -1)
 	TopStroke.Size = UDim2.new(1, 0, 0, 1)
 	
-	-- crop the logo into a square window so the artwork fills the header cell
+	-- square cell; the artwork is oversized then clipped to its own bounds
 	local LogoHolder = Instance.new("Frame", TopMain)
 	LogoHolder.Name = "LogoHolder"
 	LogoHolder.BackgroundTransparency = 1.000
@@ -451,10 +451,17 @@ function Library:CreateWindow(Setting)
 
 	Ruafimg.Name = "Ruafimg"
 	Ruafimg.Parent = LogoHolder
+	Ruafimg.AnchorPoint = Vector2.new(0.5, 0.5)
 	Ruafimg.BackgroundTransparency = 1.000
-	Ruafimg.Position = UDim2.new(0, -15, 0, -15)
-	Ruafimg.Size = UDim2.new(0, 72, 0, 72)
+	Ruafimg.Position = UDim2.new(0.5, 0, 0.5, 0)
 	Ruafimg.Image = getgenv().UIColor["Logo Image"]
+	if Ruafimg.Image == "rbxassetid://85591093437630" then
+		-- 4:3 canvas with transparent margin; oversized so the artwork fills the cell
+		Ruafimg.Size = UDim2.new(0, 60, 0, 45)
+	else
+		Ruafimg.Size = UDim2.new(0, 36, 0, 36)
+		Ruafimg.ScaleType = Enum.ScaleType.Fit
+	end
 
 	TextLabelMain.Name = "TextLabelMain"
 	TextLabelMain.Parent = TopMain
@@ -1276,8 +1283,12 @@ function Library:CreateWindow(Setting)
                 return f
             end
         
-			function sectionFunction:AddLabel(text)
-				local Title = text
+			function sectionFunction:AddLabel(text, ...)
+				local Lines = { tostring(text) }
+				for _, Extra in ipairs({ ... }) do
+					table.insert(Lines, tostring(Extra))
+				end
+				local Title = (table.concat(Lines, "\n"):gsub("\\n", "\n"))
                 local LabelFrame = Instance.new("Frame")
                 local LabelBG = Instance.new("Frame")
                 local UICorner = Instance.new("UICorner")
@@ -1318,7 +1329,7 @@ function Library:CreateWindow(Setting)
                 TextColor.Position = UDim2.new(0, 0,0, 0)
                 TextColor.Size = UDim2.new(1, 0,0, 0)
                 TextColor.Font = Enum.Font.GothamMedium
-                TextColor.Text = (tostring(Title):gsub("\\n", "\n"))
+                TextColor.Text = Title
                 TextColor.TextColor3 = Color3.fromRGB(240,240,230)
                 TextColor.TextSize = 14
                 TextColor.TextStrokeTransparency = 0.8500000238418579
