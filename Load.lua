@@ -1004,7 +1004,7 @@ function Library:CreateWindow(Setting)
 					ToggleDesc.Parent = TogFrame1
 					ToggleDesc.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 					ToggleDesc.BackgroundTransparency = 1.000
-					ToggleDesc.Position = UDim2.new(0, 15, 0, 20)
+					ToggleDesc.Position = UDim2.new(0, 10, 0, 20)
 					ToggleDesc.Size = UDim2.new(1, -50, 0, 0)
 					ToggleDesc.Font = Enum.Font.GothamBlack
 					ToggleDesc.Text = Desc
@@ -1281,6 +1281,7 @@ function Library:CreateWindow(Setting)
                 local LabelFrame = Instance.new("Frame")
                 local LabelBG = Instance.new("Frame")
                 local UICorner = Instance.new("UICorner")
+                local LabelPadding = Instance.new("UIPadding")
                 local TextColor = Instance.new("TextLabel")
                 
                 LabelFrame.Name = "LabelFrame"
@@ -1297,10 +1298,16 @@ function Library:CreateWindow(Setting)
                 LabelBG.BackgroundColor3 = Color3.fromRGB(38,38,46)
                 LabelBG.BackgroundTransparency = 0.25
                 LabelBG.Position = UDim2.new(0.5, 0,0, 0)
-                LabelBG.Size = UDim2.new(1, -10,0, -10)
+                LabelBG.Size = UDim2.new(1, -10,0, 0)
                 
                 UICorner.Parent = LabelBG
                 UICorner.CornerRadius = UDim.new(0,6)
+
+                LabelPadding.Parent = LabelBG
+                LabelPadding.PaddingTop = UDim.new(0, 6)
+                LabelPadding.PaddingBottom = UDim.new(0, 6)
+                LabelPadding.PaddingLeft = UDim.new(0, 12)
+                LabelPadding.PaddingRight = UDim.new(0, 12)
                 
                 
                 TextColor.Name = "TextColor"
@@ -1308,10 +1315,10 @@ function Library:CreateWindow(Setting)
                 TextColor.AutomaticSize = Enum.AutomaticSize.Y
                 TextColor.BackgroundColor3 = Color3.fromRGB(163,162,165)
                 TextColor.BackgroundTransparency = 1
-                TextColor.Position = UDim2.new(0, 12,0, 6)
-                TextColor.Size = UDim2.new(1, -24,1, -12)
+                TextColor.Position = UDim2.new(0, 0,0, 0)
+                TextColor.Size = UDim2.new(1, 0,0, 0)
                 TextColor.Font = Enum.Font.GothamMedium
-                TextColor.Text = Title
+                TextColor.Text = (tostring(Title):gsub("\\n", "\n"))
                 TextColor.TextColor3 = Color3.fromRGB(240,240,230)
                 TextColor.TextSize = 14
                 TextColor.TextStrokeTransparency = 0.8500000238418579
@@ -1319,9 +1326,9 @@ function Library:CreateWindow(Setting)
                 TextColor.TextXAlignment = Enum.TextXAlignment.Left
 				local labelFunction = {}
 				function labelFunction:SetText(text)
-					TextColor.Text = text
+					TextColor.Text = (tostring(text):gsub("\\n", "\n"))
 				end
-				function labelFunction.SetColor(color)
+				function labelFunction:SetColor(color)
 					TextColor.TextColor3 = color
 				end
 				local controlData = {
