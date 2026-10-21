@@ -510,8 +510,8 @@ function Library:CreateWindow(Setting)
 	PageControl.Parent = Concacmain
 	PageControl.Position = UDim2.new(0, 5, 0, 5)
 	PageControl.Size = UDim2.new(0, 200, 1, -10)
-	PageControl.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-	PageControl.BackgroundTransparency = 0.1
+	PageControl.BackgroundColor3 = Color3.fromRGB(70, 70, 82)
+	PageControl.BackgroundTransparency = 0.3
 
 	local pageControlStroke = Instance.new("UIStroke", PageControl)
 	pageControlStroke.Color = Color3.fromRGB(96, 0, 0)
@@ -519,13 +519,13 @@ function Library:CreateWindow(Setting)
 
 	local pageControlGradient = Instance.new("UIGradient", PageControl)
 	pageControlGradient.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 28, 34)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(38, 38, 46))
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(70, 70, 82)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(84, 84, 98))
 	}
 	pageControlGradient.Rotation = 90
 	pageControlGradient.Transparency = NumberSequence.new{
-		NumberSequenceKeypoint.new(0, 0.06),
-		NumberSequenceKeypoint.new(1, 0.12)
+		NumberSequenceKeypoint.new(0, 0.45),
+		NumberSequenceKeypoint.new(1, 0.55)
 	}
 
 	UICorner.CornerRadius = UDim.new(0, 4)
