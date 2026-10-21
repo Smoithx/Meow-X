@@ -476,7 +476,7 @@ function Library:CreateWindow(Setting)
 	Main.BackgroundTransparency = 1.000
 	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 	Main.AnchorPoint = Vector2.new(0.5, 0.5)
-	Main.Size = UDim2.new(0, 629, 0, 359)
+	Main.Size = UDim2.new(0, 629, 0, 374)
 
 	makeDraggable(Main, Main)
 
@@ -529,8 +529,8 @@ function Library:CreateWindow(Setting)
 	Concacontainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Concacontainer.BackgroundTransparency = 1.000
 	Concacontainer.ClipsDescendants = true
-	Concacontainer.Position = UDim2.new(0, 0, 0, 30)
-	Concacontainer.Size = UDim2.new(1, 0, 1, -30)
+	Concacontainer.Position = UDim2.new(0, 0, 0, 45)
+	Concacontainer.Size = UDim2.new(1, 0, 1, -45)
 	
 	Concacmain.Name = "Concacmain"
 	Concacmain.Parent = Concacontainer
@@ -543,7 +543,7 @@ function Library:CreateWindow(Setting)
 	TopMain.Parent = MainContainer
 	TopMain.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	TopMain.BackgroundTransparency = 1.000
-	TopMain.Size = UDim2.new(1, 0, 0, 25)
+	TopMain.Size = UDim2.new(1, 0, 0, 40)
 	
 	local TopStroke = Instance.new("Frame", TopMain)
 	TopStroke.Name = "TopStroke"
@@ -557,8 +557,8 @@ function Library:CreateWindow(Setting)
 	Ruafimg.Parent = TopMain
 	Ruafimg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Ruafimg.BackgroundTransparency = 1.000
-	Ruafimg.Position = UDim2.new(0, 5, 0, 0)
-	Ruafimg.Size = UDim2.new(0, 25, 0, 25)
+	Ruafimg.Position = UDim2.new(0, 5, 0, 5)
+	Ruafimg.Size = UDim2.new(0, 30, 0, 30)
 	Ruafimg.Image = getgenv().UIColor["Logo Image"]
 
 	TextLabelMain.Name = "TextLabelMain"
@@ -569,7 +569,7 @@ function Library:CreateWindow(Setting)
 	TextLabelMain.Size = UDim2.new(1, -35, 1, 0)
 	TextLabelMain.Font = Enum.Font.GothamBold
 	TextLabelMain.RichText = true
-	TextLabelMain.TextSize = 16.000
+	TextLabelMain.TextSize = 18.000
 	TextLabelMain.TextWrapped = true
 	TextLabelMain.TextXAlignment = Enum.TextXAlignment.Left
 	TextLabelMain.TextColor3 = getgenv().UIColor["GUI Text Color"]
