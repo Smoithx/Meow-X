@@ -509,7 +509,7 @@ function Library:CreateWindow(Setting)
 	PageControl.Name = "Background1"
 	PageControl.Parent = Concacmain
 	PageControl.Position = UDim2.new(0, 5, 0, 5)
-	PageControl.Size = UDim2.new(0, 200, 1, -10)
+	PageControl.Size = UDim2.new(0, 150, 1, -10)
 	PageControl.BackgroundColor3 = Color3.fromRGB(70, 70, 82)
 	PageControl.BackgroundTransparency = 0.3
 
@@ -538,7 +538,7 @@ function Library:CreateWindow(Setting)
 	ControlList.BackgroundTransparency = 1.000
 	ControlList.BorderColor3 = Color3.fromRGB(27, 42, 53)
 	ControlList.BorderSizePixel = 0
-	ControlList.Position = UDim2.new(0, 5, 0, 5)
+	ControlList.Position = UDim2.new(0, 0, 0, 5)
 	ControlList.Size = UDim2.new(1, -10, 1, -10)
 	ControlList.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
 	ControlList.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -555,8 +555,8 @@ function Library:CreateWindow(Setting)
 	MainPage.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 	MainPage.BackgroundTransparency = 1.000
 	MainPage.ClipsDescendants = true
-	MainPage.Position = UDim2.new(0, 215, 0, 5)
-	MainPage.Size = UDim2.new(1, -220, 1, -10)
+	MainPage.Position = UDim2.new(0, 165, 0, 5)
+	MainPage.Size = UDim2.new(1, -170, 1, -10)
 
 	UIPage.Name = "UIPage"
 	UIPage.Parent = MainPage
@@ -566,6 +566,11 @@ function Library:CreateWindow(Setting)
 	UIPage.EasingStyle = Enum.EasingStyle.Quart
 	UIPage.Padding = UDim.new(0, 10)
 	UIPage.TweenTime = getgenv().UIColor["Tween Animation 1 Speed"]
+
+	-- pages change only through the tab buttons (no wheel / gamepad / swipe paging)
+	UIPage.ScrollWheelInputEnabled = false
+	UIPage.GamepadInputEnabled = false
+	UIPage.TouchInputEnabled = false
 
 	UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		ControlList.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 5)
@@ -620,7 +625,7 @@ function Library:CreateWindow(Setting)
 		Frame.Parent = PageName
 		Frame.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 		Frame.BackgroundTransparency = 1.000
-		Frame.Position = UDim2.new(0, 5, 0, 0)
+		Frame.Position = UDim2.new(0, 2, 0, 0)
 		Frame.Size = UDim2.new(1, -5, 1, 0)
 
 		TabNameCorner.CornerRadius = UDim.new(0, 4)
@@ -633,14 +638,14 @@ function Library:CreateWindow(Setting)
 		Line.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 		Line.BackgroundTransparency = 1.000
 		Line.Position = UDim2.new(0, 0, 0.5, 0)
-		Line.Size = UDim2.new(0, 14, 1, 0)
+		Line.Size = UDim2.new(0, 10, 1, 0)
 
 		InLine.Name = "PageInLine"
 		InLine.Parent = Line
 		InLine.AnchorPoint = Vector2.new(0.5, 0.5)
 		InLine.BorderSizePixel = 0
 		InLine.Position = UDim2.new(0.5, 0, 0.5, 0)
-		InLine.Size = UDim2.new(1, -10, 1, -10)
+		InLine.Size = UDim2.new(1, -4, 1, -10)
 		InLine.BackgroundColor3 = getgenv().UIColor["Page Selected Color"]
 		InLine.BackgroundTransparency = 1.000
 
@@ -651,7 +656,7 @@ function Library:CreateWindow(Setting)
 		TabTitleContainer.Parent = Frame
 		TabTitleContainer.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 		TabTitleContainer.BackgroundTransparency = 1.000
-		TabTitleContainer.Position = UDim2.new(0, 15, 0, 0)
+		TabTitleContainer.Position = UDim2.new(0, 13, 0, 0)
 		TabTitleContainer.Size = UDim2.new(1, -15, 1, 0)
 
 		TabTitle.Name = "GUITextColor"
@@ -688,7 +693,7 @@ function Library:CreateWindow(Setting)
 		PageContainer.Name = "Page" .. CurrentPage
 		PageContainer.Parent = MainPage
 		PageContainer.BackgroundColor3 = getgenv().UIColor["Background 1 Color"]
-		PageContainer.Position = UDim2.new(0, 190, 0, 30)
+		PageContainer.Position = UDim2.new(0, 0, 0, 0)
 		PageContainer.Size = UDim2.new(1, 0, 1, 0)
 		PageContainer.LayoutOrder = LayoutOrder
 		PageContainer.BackgroundTransparency = getgenv().UIColor["Background 1 Transparency"]
@@ -753,6 +758,16 @@ function Library:CreateWindow(Setting)
 						}):Play()
 					end
 				end
+			end
+		end)
+
+		UIPage:GetPropertyChangedSignal("CurrentPage"):Connect(function()
+			local Active = UIPage.CurrentPage == PageContainer
+			TweenService:Create(PageName.Frame.Line.PageInLine, TweenInfo.new(getgenv().UIColor["Tween Animation 1 Speed"]), {
+				BackgroundTransparency = Active and 0 or 1
+			}):Play()
+			if Active then
+				PageContainer.Visible = true
 			end
 		end)
 
