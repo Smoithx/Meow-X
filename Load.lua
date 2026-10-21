@@ -74,6 +74,12 @@ function Library_Function.LoadLogo()
 			assert(string.sub(Body, 2, 4) == "PNG", "logo url did not return a png")
 			writefile(File, Body)
 		end
+		local Data = readfile(File)
+		local Width = string.byte(Data, 17) * 16777216 + string.byte(Data, 18) * 65536 + string.byte(Data, 19) * 256 + string.byte(Data, 20)
+		local Height = string.byte(Data, 21) * 16777216 + string.byte(Data, 22) * 65536 + string.byte(Data, 23) * 256 + string.byte(Data, 24)
+		if Width > 0 and Height > 0 then
+			getgenv().UIColor["Logo Aspect"] = Width / Height
+		end
 		getgenv().UIColor["Logo Image"] = getcustomasset(File)
 	end))
 end
@@ -485,8 +491,15 @@ function Library:CreateWindow(Setting)
 		-- 4:3 canvas with transparent margin; oversized so the artwork fills the cell
 		Ruafimg.Size = UDim2.new(0, 60, 0, 45)
 	else
-		Ruafimg.Size = UDim2.new(0, 42, 0, 42)
-		Ruafimg.ScaleType = Enum.ScaleType.Fit
+		local Aspect = getgenv().UIColor["Logo Aspect"]
+		if Aspect and Aspect > 1.28 then
+			-- wide canvas: the art sits inside transparent padding, so oversize and let the cell crop it
+			Ruafimg.Size = UDim2.new(0, 45, 0, 45)
+			Ruafimg.ScaleType = Enum.ScaleType.Crop
+		else
+			Ruafimg.Size = UDim2.new(0, 42, 0, 42)
+			Ruafimg.ScaleType = Enum.ScaleType.Fit
+		end
 	end
 
 	TextLabelMain.Name = "TextLabelMain"
