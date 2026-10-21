@@ -476,7 +476,7 @@ function Library:CreateWindow(Setting)
 	Main.BackgroundTransparency = 1.000
 	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 	Main.AnchorPoint = Vector2.new(0.5, 0.5)
-	Main.Size = UDim2.new(0, 629, 0, 374)
+	Main.Size = UDim2.new(0, 700, 0, 446)
 
 	makeDraggable(Main, Main)
 
@@ -529,8 +529,8 @@ function Library:CreateWindow(Setting)
 	Concacontainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Concacontainer.BackgroundTransparency = 1.000
 	Concacontainer.ClipsDescendants = true
-	Concacontainer.Position = UDim2.new(0, 0, 0, 45)
-	Concacontainer.Size = UDim2.new(1, 0, 1, -45)
+	Concacontainer.Position = UDim2.new(0, 0, 0, 61)
+	Concacontainer.Size = UDim2.new(1, 0, 1, -61)
 	
 	Concacmain.Name = "Concacmain"
 	Concacmain.Parent = Concacontainer
@@ -543,7 +543,7 @@ function Library:CreateWindow(Setting)
 	TopMain.Parent = MainContainer
 	TopMain.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	TopMain.BackgroundTransparency = 1.000
-	TopMain.Size = UDim2.new(1, 0, 0, 40)
+	TopMain.Size = UDim2.new(1, 0, 0, 56)
 	
 	local TopStroke = Instance.new("Frame", TopMain)
 	TopStroke.Name = "TopStroke"
@@ -555,35 +555,42 @@ function Library:CreateWindow(Setting)
 	
 	Ruafimg.Name = "Ruafimg"
 	Ruafimg.Parent = TopMain
-	Ruafimg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Ruafimg.BackgroundTransparency = 1.000
-	Ruafimg.Position = UDim2.new(0, 5, 0, 5)
-	Ruafimg.Size = UDim2.new(0, 30, 0, 30)
+	Ruafimg.Position = UDim2.new(0, 10, 0, 11)
+	Ruafimg.Size = UDim2.new(0, 34, 0, 34)
 	Ruafimg.Image = getgenv().UIColor["Logo Image"]
+
+	local LogoCorner = Instance.new("UICorner", Ruafimg)
+	LogoCorner.CornerRadius = UDim.new(0, 6)
 
 	TextLabelMain.Name = "TextLabelMain"
 	TextLabelMain.Parent = TopMain
-	TextLabelMain.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 	TextLabelMain.BackgroundTransparency = 1.000
-	TextLabelMain.Position = UDim2.new(0, 220, 0, 0)
-	TextLabelMain.Size = UDim2.new(1, -35, 1, 0)
+	TextLabelMain.Position = UDim2.new(0, 54, 0, 7)
+	TextLabelMain.Size = UDim2.new(1, -110, 0, 24)
 	TextLabelMain.Font = Enum.Font.GothamBold
-	TextLabelMain.RichText = true
-	TextLabelMain.TextSize = 20.000
-	TextLabelMain.TextWrapped = true
+	TextLabelMain.Text = tostring(TitleNameMain)
+	TextLabelMain.TextSize = 19.000
+	TextLabelMain.TextTruncate = Enum.TextTruncate.AtEnd
 	TextLabelMain.TextXAlignment = Enum.TextXAlignment.Left
 	TextLabelMain.TextColor3 = getgenv().UIColor["GUI Text Color"]
 
-	local colorR = tostring(Library_Function.Getcolor(getgenv().UIColor['Title Text Color'])[1])
-	local colorG = tostring(Library_Function.Getcolor(getgenv().UIColor['Title Text Color'])[2])
-	local colorB = tostring(Library_Function.Getcolor(getgenv().UIColor['Title Text Color'])[3])
-	local color = colorR .. ',' .. colorG .. ',' .. colorB
-    TextLabelMain.Text = "<font color=\"rgb(" .. tostring(color or "255,206,27") .. ")\">" .. tostring(TitleNameMain or "Night Slayer Hub") .. "</font> " .. tostring(getgenv().MainDesc or "")
+	local SubtitleLabel = Instance.new("TextLabel", TopMain)
+	SubtitleLabel.Name = "SubtitleLabel"
+	SubtitleLabel.BackgroundTransparency = 1.000
+	SubtitleLabel.Position = UDim2.new(0, 54, 0, 30)
+	SubtitleLabel.Size = UDim2.new(1, -110, 0, 18)
+	SubtitleLabel.Font = Enum.Font.GothamBold
+	SubtitleLabel.TextSize = 14.000
+	SubtitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	SubtitleLabel.TextColor3 = getgenv().UIColor["Text Color"]
+	SubtitleLabel.Text = (getgenv().MainDesc ~= "" and tostring(getgenv().MainDesc)) or "No Description"
 
 	PageControl.Name = "Background1"
 	PageControl.Parent = Concacmain
-	PageControl.Position = UDim2.new(0, 5, 0, 0)
-	PageControl.Size = UDim2.new(0, 180, 0, 325)
+	PageControl.Position = UDim2.new(0, 5, 0, 5)
+	PageControl.Size = UDim2.new(0, 200, 1, -10)
 	PageControl.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
 	PageControl.BackgroundTransparency = 0.1
 
@@ -646,7 +653,7 @@ function Library:CreateWindow(Setting)
 	PageSearch.AnchorPoint = Vector2.new(1, 0)
 	PageSearch.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
 	PageSearch.Position = UDim2.new(1, -5, 0, 5)
-	PageSearch.Size = UDim2.new(0, 170, 0, 25)
+	PageSearch.Size = UDim2.new(0, 190, 0, 25)
 	PageSearch.ClipsDescendants = true
 
 	PageSearchCorner.Parent = PageSearch
@@ -678,7 +685,7 @@ function Library:CreateWindow(Setting)
     SearchBox.Size = UDim2.new(1, -30, 1, 0)
     SearchBox.Font = Enum.Font.GothamBold
     SearchBox.PlaceholderColor3 = Color3.fromRGB(170, 170, 160)
-    SearchBox.PlaceholderText = "Search section or Function..."
+    SearchBox.PlaceholderText = "Search section..."
     SearchBox.Text = ""
     SearchBox.TextColor3 = Color3.fromRGB(235, 235, 230)
     SearchBox.TextSize = 14
@@ -689,8 +696,8 @@ function Library:CreateWindow(Setting)
 	MainPage.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 	MainPage.BackgroundTransparency = 1.000
 	MainPage.ClipsDescendants = true
-	MainPage.Position = UDim2.new(0, 190, 0, 0)
-	MainPage.Size = UDim2.new(0, 435, 0, 325)
+	MainPage.Position = UDim2.new(0, 215, 0, 5)
+	MainPage.Size = UDim2.new(1, -220, 1, -10)
 
 	UIPage.Name = "UIPage"
 	UIPage.Parent = MainPage
@@ -955,7 +962,7 @@ function Library:CreateWindow(Setting)
 		PageContainer.Parent = MainPage
 		PageContainer.BackgroundColor3 = getgenv().UIColor["Background 1 Color"]
 		PageContainer.Position = UDim2.new(0, 190, 0, 30)
-		PageContainer.Size = UDim2.new(0, 435, 0, 325)
+		PageContainer.Size = UDim2.new(1, 0, 1, 0)
 		PageContainer.LayoutOrder = LayoutOrder
 		PageContainer.BackgroundTransparency = getgenv().UIColor["Background 1 Transparency"]
 
@@ -1179,7 +1186,7 @@ function Library:CreateWindow(Setting)
 			Topsec.Parent = Section
 			Topsec.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 			Topsec.BackgroundTransparency = 1.000
-			Topsec.Size = UDim2.new(0, 415, 0, 34)
+			Topsec.Size = UDim2.new(1, 0, 0, 34)
 
 			Sectiontitle.Name = "Sectiontitle"
 			Sectiontitle.Parent = Topsec
@@ -3400,7 +3407,7 @@ end
 				SliderBar.Parent = SliderFrame
 				SliderBar.AnchorPoint = Vector2.new(.5, 0.5)
 				SliderBar.Position = UDim2.new(.5, 0, 0.5, 14)
-				SliderBar.Size = UDim2.new(0, 400, 0, 6)
+				SliderBar.Size = UDim2.new(1, -20, 0, 6)
 				SliderBar.BackgroundColor3 = getgenv().UIColor["Background 2 Color"]
 				SliderButton.Name = "SliderButton "
 				SliderButton.Parent = SliderBar
