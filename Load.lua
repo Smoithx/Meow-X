@@ -15,6 +15,7 @@ local T1UIColor = {
 	["Click Effect Color"] = Color3.fromRGB(230, 230, 230),
 	["Setting Icon Color"] = Color3.fromRGB(230, 230, 230),
 	["Logo Image"] = "rbxassetid://85591093437630",
+	["Logo Url"] = "",
 	["Search Icon Color"] = Color3.fromRGB(240, 240, 230),
 	["Search Icon Highlight Color"] = Color3.fromRGB(255, 0, 0),
 	["GUI Text Color"] = Color3.fromRGB(235, 235, 230),
@@ -57,6 +58,26 @@ getgenv().UIToggled = true
 local currcolor = {}
 local Library = {};
 local Library_Function = {}
+
+-- pulls the logo straight from a raw url so roblox never re-compresses it
+function Library_Function.LoadLogo()
+	local Url = getgenv().UIColor["Logo Url"]
+	if not Url or Url == "" then return false end
+	if type(writefile) ~= "function" or type(getcustomasset) ~= "function" then return false end
+	local File = "GravityHub/Logo_" .. tostring(#Url) .. ".png"
+	return (pcall(function()
+		if not isfolder("GravityHub") then
+			makefolder("GravityHub")
+		end
+		if not isfile(File) or #readfile(File) < 8 then
+			local Body = game:HttpGet(Url)
+			assert(string.sub(Body, 2, 4) == "PNG", "logo url did not return a png")
+			writefile(File, Body)
+		end
+		getgenv().UIColor["Logo Image"] = getcustomasset(File)
+	end))
+end
+
 local TweenService = game:GetService('TweenService')
 local uis = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -338,6 +359,11 @@ function Library:CreateWindow(Setting)
     if Setting.Image then
         getgenv().UIColor["Logo Image"] = Setting.Image
     end
+
+    if Setting.LogoUrl then
+        getgenv().UIColor["Logo Url"] = Setting.LogoUrl
+    end
+    Library_Function.LoadLogo()
     
 	local djtmemay = false
 	cac = false
@@ -459,7 +485,7 @@ function Library:CreateWindow(Setting)
 		-- 4:3 canvas with transparent margin; oversized so the artwork fills the cell
 		Ruafimg.Size = UDim2.new(0, 60, 0, 45)
 	else
-		Ruafimg.Size = UDim2.new(0, 36, 0, 36)
+		Ruafimg.Size = UDim2.new(0, 42, 0, 42)
 		Ruafimg.ScaleType = Enum.ScaleType.Fit
 	end
 
