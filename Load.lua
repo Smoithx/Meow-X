@@ -569,7 +569,7 @@ function Library:CreateWindow(Setting)
 	TextLabelMain.Size = UDim2.new(1, -35, 1, 0)
 	TextLabelMain.Font = Enum.Font.GothamBold
 	TextLabelMain.RichText = true
-	TextLabelMain.TextSize = 18.000
+	TextLabelMain.TextSize = 20.000
 	TextLabelMain.TextWrapped = true
 	TextLabelMain.TextXAlignment = Enum.TextXAlignment.Left
 	TextLabelMain.TextColor3 = getgenv().UIColor["GUI Text Color"]
@@ -631,7 +631,7 @@ function Library:CreateWindow(Setting)
 	ControlTitle.Size = UDim2.new(1, 0, 0, 25)
 	ControlTitle.Font = Enum.Font.GothamBold
 	ControlTitle.Text = TitleNameMain
-	ControlTitle.TextSize = 14.000
+	ControlTitle.TextSize = 16.000
 	ControlTitle.TextXAlignment = Enum.TextXAlignment.Left
 	ControlTitle.TextColor3 = getgenv().UIColor["GUI Text Color"]
 
@@ -879,7 +879,7 @@ function Library:CreateWindow(Setting)
 		PageName.Parent = ControlList
 		PageName.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 		PageName.BackgroundTransparency = 1.000
-		PageName.Size = UDim2.new(1, -10, 0, 25)
+		PageName.Size = UDim2.new(1, -10, 0, 30)
 		PageName.LayoutOrder = LayoutOrderBut
 
 		Frame.Parent = PageName
@@ -927,7 +927,7 @@ function Library:CreateWindow(Setting)
 		TabTitle.Font = Enum.Font.GothamBold
 		TabTitle.Text = Page_Name
 		TabTitle.TextColor3 = Color3.fromRGB(230, 230, 230)
-		TabTitle.TextSize = 14.000
+		TabTitle.TextSize = 16.000
 		TabTitle.TextXAlignment = Enum.TextXAlignment.Left
 		TabTitle.TextColor3 = getgenv().UIColor["GUI Text Color"]
 
@@ -967,10 +967,10 @@ function Library:CreateWindow(Setting)
 		PageTitle.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 		PageTitle.BackgroundTransparency = 1.000
 		PageTitle.Position = UDim2.new(0, 5, 0, 0)
-		PageTitle.Size = UDim2.new(1, 0, 0, 25)
+		PageTitle.Size = UDim2.new(1, 0, 0, 28)
 		PageTitle.Font = Enum.Font.GothamBold
 		PageTitle.Text = Page_Title
-		PageTitle.TextSize = 16.000
+		PageTitle.TextSize = 18.000
 		PageTitle.TextXAlignment = Enum.TextXAlignment.Left
 		PageTitle.TextColor3 = getgenv().UIColor["GUI Text Color"]
 
@@ -981,8 +981,8 @@ function Library:CreateWindow(Setting)
 		PageList.BackgroundTransparency = 1.000
 		PageList.BorderColor3 = Color3.fromRGB(27, 42, 53)
 		PageList.BorderSizePixel = 0
-		PageList.Position = UDim2.new(0, 5, 0, 30)
-		PageList.Size = UDim2.new(1, -10, 1, -30)
+		PageList.Position = UDim2.new(0, 5, 0, 33)
+		PageList.Size = UDim2.new(1, -10, 1, -33)
 		PageList.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
 		PageList.ScrollBarThickness = 5
 		PageList.TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
@@ -1179,7 +1179,7 @@ function Library:CreateWindow(Setting)
 			Topsec.Parent = Section
 			Topsec.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 			Topsec.BackgroundTransparency = 1.000
-			Topsec.Size = UDim2.new(0, 415, 0, 30)
+			Topsec.Size = UDim2.new(0, 415, 0, 34)
 
 			Sectiontitle.Name = "Sectiontitle"
 			Sectiontitle.Parent = Topsec
@@ -1188,7 +1188,7 @@ function Library:CreateWindow(Setting)
 			Sectiontitle.Size = UDim2.new(1, 0, 1, 0)
 			Sectiontitle.Font = Enum.Font.GothamBold
 			Sectiontitle.Text = Section_Name
-			Sectiontitle.TextSize = 14.000
+			Sectiontitle.TextSize = 16.000
 			Sectiontitle.TextColor3 = getgenv().UIColor["Section Text Color"]
 
 			Linesec.Name = "Linesec"
