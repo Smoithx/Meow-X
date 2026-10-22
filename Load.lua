@@ -146,16 +146,27 @@ Library_Function.NotiGui.Name = 'Gravity Hub Notification'
 
 
 Library.ToggleUI = function()
-	getgenv().UIToggled = not getgenv().UIToggled
+	local Now = os.clock()
+	if Now - (getgenv().LastUIToggle or 0) < 0.15 then return end
+	getgenv().LastUIToggle = Now
+
 	local Gui = game:GetService("CoreGui"):FindFirstChild("Gravity Hub GUI")
+	local Enabled = not (Gui and Gui.Enabled)
+	getgenv().UIToggled = Enabled
 	if Gui then
-		Gui.Enabled = getgenv().UIToggled
+		Gui.Enabled = Enabled
 	end
 end
+getgenv().ToggleUI = Library.ToggleUI
 
 
--- right ctrl toggles the whole ui
-uis.InputBegan:Connect(function(Input)
+-- right ctrl toggles the whole ui, one handler only even after re-running the script
+if getgenv().GravityHubKeybind then
+	pcall(function()
+		getgenv().GravityHubKeybind:Disconnect()
+	end)
+end
+getgenv().GravityHubKeybind = uis.InputBegan:Connect(function(Input)
 	if Input.KeyCode ~= Enum.KeyCode.RightControl then return end
 	if uis:GetFocusedTextBox() then return end
 	Library.ToggleUI()
