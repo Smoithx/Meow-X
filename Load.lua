@@ -502,11 +502,26 @@ function Library:CreateWindow(Setting)
 		end
 	end
 
+	-- title + subtitle share the logo cell so both sit on one vertical center
+	local TitleHolder = Instance.new("Frame", TopMain)
+	TitleHolder.Name = "TitleHolder"
+	TitleHolder.BackgroundTransparency = 1.000
+	TitleHolder.Position = UDim2.new(0, 58, 0, 3)
+	TitleHolder.Size = UDim2.new(1, -112, 0, 42)
+
+	local TitleList = Instance.new("UIListLayout", TitleHolder)
+	TitleList.FillDirection = Enum.FillDirection.Vertical
+	TitleList.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	TitleList.VerticalAlignment = Enum.VerticalAlignment.Center
+	TitleList.SortOrder = Enum.SortOrder.LayoutOrder
+	TitleList.Padding = UDim.new(0, 1)
+
 	TextLabelMain.Name = "TextLabelMain"
-	TextLabelMain.Parent = TopMain
+	TextLabelMain.Parent = TitleHolder
+	TextLabelMain.AutomaticSize = Enum.AutomaticSize.Y
 	TextLabelMain.BackgroundTransparency = 1.000
-	TextLabelMain.Position = UDim2.new(0, 58, 0, 4)
-	TextLabelMain.Size = UDim2.new(1, -112, 0, 24)
+	TextLabelMain.LayoutOrder = 1
+	TextLabelMain.Size = UDim2.new(1, 0, 0, 0)
 	TextLabelMain.Font = Enum.Font.GothamBold
 	TextLabelMain.Text = tostring(TitleNameMain)
 	TextLabelMain.TextSize = 19.000
@@ -514,11 +529,12 @@ function Library:CreateWindow(Setting)
 	TextLabelMain.TextXAlignment = Enum.TextXAlignment.Left
 	TextLabelMain.TextColor3 = getgenv().UIColor["GUI Text Color"]
 
-	local SubtitleLabel = Instance.new("TextLabel", TopMain)
+	local SubtitleLabel = Instance.new("TextLabel", TitleHolder)
 	SubtitleLabel.Name = "SubtitleLabel"
+	SubtitleLabel.AutomaticSize = Enum.AutomaticSize.Y
 	SubtitleLabel.BackgroundTransparency = 1.000
-	SubtitleLabel.Position = UDim2.new(0, 58, 0, 27)
-	SubtitleLabel.Size = UDim2.new(1, -112, 0, 18)
+	SubtitleLabel.LayoutOrder = 2
+	SubtitleLabel.Size = UDim2.new(1, 0, 0, 0)
 	SubtitleLabel.Font = Enum.Font.GothamBold
 	SubtitleLabel.TextSize = 14.000
 	SubtitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
