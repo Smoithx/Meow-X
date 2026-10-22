@@ -913,7 +913,7 @@ function Library:CreateWindow(Setting)
 			Section.Parent = PageList
 			Section.Size = UDim2.new(1, -5, 0, 30)
 			Section.BackgroundColor3 = Color3.fromRGB(48, 48, 56)
-			Section.BackgroundTransparency = 0.25
+			Section.BackgroundTransparency = 0.55
 			Section.ClipsDescendants = true
 
 			local sectionStroke = Instance.new("UIStroke", Section)
@@ -927,8 +927,8 @@ function Library:CreateWindow(Setting)
 			}
 			sectionGradient.Rotation = 90
 			sectionGradient.Transparency = NumberSequence.new{
-				NumberSequenceKeypoint.new(0, 0.05),
-				NumberSequenceKeypoint.new(1, 0.15)
+				NumberSequenceKeypoint.new(0, 0.35),
+				NumberSequenceKeypoint.new(1, 0.45)
 			}
 
 			UICorner.CornerRadius = UDim.new(0, 4)
