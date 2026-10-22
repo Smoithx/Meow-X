@@ -995,22 +995,15 @@ function Library:CreateWindow(Setting)
 				VisibilityButton.Name = "VisibilityButton"
 				VisibilityButton.Parent = Topsec
 				VisibilityButton.AnchorPoint = Vector2.new(1, 0.5)
-				VisibilityButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 				VisibilityButton.BackgroundTransparency = 1.000
-				VisibilityButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-				VisibilityButton.BorderSizePixel = 0
-				VisibilityButton.Font = Enum.Font.SourceSans
 				VisibilityButton.Text = ""
-				VisibilityButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-				VisibilityButton.TextSize = 14.000
-				VisibilityButton.ZIndex = 2
+				VisibilityButton.ZIndex = 4
 				VisibilityButton.Position = UDim2.new(1, -5, 0.5, 0)
 				VisibilityButton.Size = UDim2.new(0, 20, 0, 20)
 				VisibilitySectionFrame.Name = "VisibilitySectionFrame"
 				VisibilitySectionFrame.Parent = Topsec
 				VisibilitySectionFrame.AnchorPoint = Vector2.new(1, 0.5)
 				VisibilitySectionFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-				VisibilitySectionFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 				VisibilitySectionFrame.BorderSizePixel = 0
 				VisibilitySectionFrame.Position = UDim2.new(1, -5, 0.5, 0)
 				VisibilitySectionFrame.Size = UDim2.new(0, 20, 0, 20)
@@ -1021,7 +1014,6 @@ function Library:CreateWindow(Setting)
 				visibility.Parent = VisibilitySectionFrame
 				visibility.AnchorPoint = Vector2.new(0.5, 0.5)
 				visibility.BackgroundTransparency = 1.000
-				visibility.LayoutOrder = 4
 				visibility.Position = UDim2.new(0.5, 0, 0.5, 0)
 				visibility.Size = UDim2.new(1, -4, 1, -4)
 				visibility.ZIndex = 2
@@ -1033,7 +1025,6 @@ function Library:CreateWindow(Setting)
 				visibility_off.Parent = VisibilitySectionFrame
 				visibility_off.AnchorPoint = Vector2.new(0.5, 0.5)
 				visibility_off.BackgroundTransparency = 1.000
-				visibility_off.LayoutOrder = 4
 				visibility_off.Position = UDim2.new(0.5, 0, 0.5, 0)
 				visibility_off.Size = UDim2.new(1, -4, 1, -4)
 				visibility_off.ZIndex = 2
@@ -1041,19 +1032,33 @@ function Library:CreateWindow(Setting)
 				visibility_off.ImageRectOffset = Vector2.new(564, 44)
 				visibility_off.ImageRectSize = Vector2.new(36, 36)
 				visibility_off.ImageTransparency = 0
-				VisibilityButton.MouseButton1Down:Connect(function()
-					sectionIsVisible = not sectionIsVisible
-					TweenService:Create(visibility, TweenInfo.new(getgenv().UIColor["Tween Animation 1 Speed"] / 2), {
-						ImageTransparency = sectionIsVisible and 0 or 1
-					}):Play()
-					wait(getgenv().UIColor["Tween Animation 1 Speed"] / 4)
-					TweenService:Create(visibility_off, TweenInfo.new(getgenv().UIColor["Tween Animation 1 Speed"] / 2), {
-						ImageTransparency = sectionIsVisible and 1 or 0
-					}):Play()
+
+				local function RefreshCollapse()
 					TweenService:Create(Section, TweenInfo.new(getgenv().UIColor["Tween Animation 1 Speed"]), {
-						Size =  UDim2.new(1, -5, 0, (sectionIsVisible and SizeSectionY or 30))
+						Size = UDim2.new(1, -5, 0, sectionIsVisible and (SizeSectionY or 34) or 34)
 					}):Play()
-				end)
+					visibility.ImageTransparency = sectionIsVisible and 0 or 1
+					visibility_off.ImageTransparency = sectionIsVisible and 1 or 0
+				end
+				local function ToggleCollapse()
+					sectionIsVisible = not sectionIsVisible
+					RefreshCollapse()
+				end
+
+				-- the whole header is the collapse handle
+				local CollapseButton = Instance.new("TextButton")
+				CollapseButton.Name = "CollapseButton"
+				CollapseButton.Parent = Topsec
+				CollapseButton.BackgroundTransparency = 1
+				CollapseButton.AutoButtonColor = false
+				CollapseButton.Text = ""
+				CollapseButton.Size = UDim2.new(1, -32, 1, 0)
+				CollapseButton.ZIndex = 3
+
+				VisibilityButton.MouseButton1Down:Connect(ToggleCollapse)
+				CollapseButton.MouseButton1Down:Connect(ToggleCollapse)
+
+				Section.Size = UDim2.new(1, -5, 0, 34)
 			end
 			if SectionGap then
 				local SectionGap = Instance.new("Frame")
@@ -1065,14 +1070,9 @@ function Library:CreateWindow(Setting)
 			end
 
 			SectionList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				if (not Toggleable) then
-					Section.Size = UDim2.new(1, -5, 0, SectionList.AbsoluteContentSize.Y + 5)
-				end
 				SizeSectionY = SectionList.AbsoluteContentSize.Y + 5
-				if sectionIsVisible then
-					TweenService:Create(Section, TweenInfo.new(getgenv().UIColor["Tween Animation 1 Speed"]), {
-						Size =  UDim2.new(1, -5, 0, SizeSectionY)
-					}):Play()
+				if not Toggleable or sectionIsVisible then
+					Section.Size = UDim2.new(1, -5, 0, SizeSectionY)
 				end
 			end)
 			local sectionFunction = {}
@@ -2901,11 +2901,11 @@ end
 			return sectionFunction
 		end
         local pagefunc = {}
-        function pagefunc:AddLeftGroupbox(name)
-            return pageFunction:AddSection(name)
+        function pagefunc:AddLeftGroupbox(name, Toggleable)
+            return pageFunction:AddSection(name, Toggleable ~= false)
         end
-        function pagefunc:AddRightGroupbox(name)
-            return pageFunction:AddSection(name)
+        function pagefunc:AddRightGroupbox(name, Toggleable)
+            return pageFunction:AddSection(name, Toggleable ~= false)
         end
 		return pagefunc
         end
