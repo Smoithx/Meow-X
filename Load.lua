@@ -153,6 +153,14 @@ Library.ToggleUI = function()
 	end
 end
 
+
+-- right ctrl toggles the whole ui
+uis.InputBegan:Connect(function(Input)
+	if Input.KeyCode ~= Enum.KeyCode.RightControl then return end
+	if uis:GetFocusedTextBox() then return end
+	Library.ToggleUI()
+end)
+
 Library.DestroyUI = function()
 	if game.CoreGui:FindFirstChild("Gravity Hub GUI") then
 		for i, v in ipairs(game.CoreGui:GetChildren()) do
@@ -370,6 +378,51 @@ function Library:CreateWindow(Setting)
         getgenv().UIColor["Logo Url"] = Setting.LogoUrl
     end
     Library_Function.LoadLogo()
+
+	-- floating toggle: rounded dark square with the logo inside
+	local ToggleGui = Instance.new("ScreenGui")
+	ToggleGui.Name = "Gravity Hub Toggle"
+	ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	ToggleGui.ResetOnSpawn = false
+	ToggleGui.Parent = game:GetService("CoreGui")
+
+	local ToggleButton = Instance.new("TextButton")
+	ToggleButton.Name = "ToggleButton"
+	ToggleButton.Parent = ToggleGui
+	ToggleButton.AnchorPoint = Vector2.new(0.5, 0)
+	ToggleButton.Position = UDim2.new(0.5, 0, 0, 12)
+	ToggleButton.Size = UDim2.new(0, 46, 0, 46)
+	ToggleButton.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
+	ToggleButton.BackgroundTransparency = 0.35
+	ToggleButton.AutoButtonColor = false
+	ToggleButton.Text = ""
+
+	local ToggleCorner = Instance.new("UICorner", ToggleButton)
+	ToggleCorner.CornerRadius = UDim.new(0, 12)
+
+	local ToggleStroke = Instance.new("UIStroke", ToggleButton)
+	ToggleStroke.Color = getgenv().UIColor["Border Color"]
+	ToggleStroke.Thickness = 1.5
+	ToggleStroke.Transparency = 0.2
+
+	local ToggleLogo = Instance.new("ImageLabel", ToggleButton)
+	ToggleLogo.Name = "Logo"
+	ToggleLogo.AnchorPoint = Vector2.new(0.5, 0.5)
+	ToggleLogo.Position = UDim2.new(0.5, 0, 0.5, 0)
+	ToggleLogo.Size = UDim2.new(1, -10, 1, -10)
+	ToggleLogo.BackgroundTransparency = 1
+	ToggleLogo.Image = getgenv().UIColor["Logo Image"]
+	ToggleLogo.ScaleType = Enum.ScaleType.Fit
+
+	local LogoAspect = getgenv().UIColor["Logo Aspect"]
+	if LogoAspect and LogoAspect > 1.28 then
+		ToggleLogo.Size = UDim2.new(1, -2, 1, -2)
+		ToggleLogo.ScaleType = Enum.ScaleType.Crop
+	end
+
+	ToggleButton.MouseButton1Click:Connect(function()
+		Library.ToggleUI()
+	end)
     
 	local djtmemay = false
 	cac = false
