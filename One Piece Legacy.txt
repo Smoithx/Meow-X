@@ -25,7 +25,6 @@ local CompassStateRequest = Remotes:WaitForChild("CompassStateRequest")
 local DamageEvent = Remotes:WaitForChild("DamageEvent")
 local DroppedFruitPickupRequest = Remotes:WaitForChild("DroppedFruitPickupRequest")
 local CharacterReplicationProbe = Remotes:FindFirstChild("CharacterReplicationProbe")
-local SessionRemote = Remotes:FindFirstChild("SessionEvent")
 
 -- CONFIG
 Config = Config or {
@@ -170,19 +169,26 @@ end
 
 function Func:ClaimCompass()
     local Character = LocalPlayer.Character
-    if not Character then
+    local Sam = Func:Sam()
+    if not Character or not Sam then
         return false
     end
     if Func:CompassTool() then
         return false
     end
-    local Position = Func.SamPosition
-    if not Position or not SessionRemote then
+    local Remote = Func:SkillRemote()
+    if not Remote then
         return false
     end
-    Func:Teleport(Position + Vector3.new(0, 0, 6))
-    task.wait(1)
-    SessionRemote:FireServer("Sam", { "ClaimAmount", Func:Sam(), 1 })
+    Func:Teleport(Sam:GetPivot().Position + Vector3.new(0, 0, 6))
+    task.wait(0.6)
+    local Detector = Sam:FindFirstChildWhichIsA("ClickDetector", true)
+    if Detector and type(fireclickdetector) == "function" then
+        fireclickdetector(Detector, 10)
+        task.wait(0.8)
+    end
+    local Merchant = LocalPlayer:FindFirstChild("CurrentMerchant")
+    Remote:FireServer("Sam", { "ClaimAmount", Merchant and Merchant.Value or Sam, 1 })
     task.wait(1.5)
     Func:RefreshState()
     return Func:CompassTool() ~= nil
@@ -644,14 +650,8 @@ function Func:HakiOn()
     if Character:GetAttribute("Haki") == true or Character:GetAttribute("Buso") == true then
         return true
     end
-    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    local HealthBar = PlayerGui and (PlayerGui:FindFirstChild("HealthBar") or PlayerGui:FindFirstChild("Healthbar"))
-    local Status = HealthBar and HealthBar:FindFirstChild("Frame")
-    Status = Status and Status:FindFirstChild("Status")
-    local Grid = Status and Status:FindFirstChild("UIGridLayout")
-    local Holder = Grid and Grid.Parent
-    local Effect = Holder and Holder:FindFirstChild("Haki")
-    if Effect and Effect:IsA("GuiObject") and Effect.Visible then
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    if Humanoid and Humanoid.Health <= 0 then
         return true
     end
     return false
@@ -925,6 +925,13 @@ LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
     Func:Purge()
     Func:FixSpawn()
+    Func.HakiAt = 0
+    if Config["Auto Haki"] then
+        task.wait(1.2)
+        pcall(function()
+            Func:Haki()
+        end)
+    end
 end)
 
 -- LOOPS
