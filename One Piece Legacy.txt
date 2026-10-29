@@ -13,6 +13,7 @@ local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local VirtualUser = cloneref(game:GetService("VirtualUser"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local RunService = cloneref(game:GetService("RunService"))
+local VirtualInputManager = cloneref(game:GetService("VirtualInputManager"))
 
 
 
@@ -48,6 +49,9 @@ Config = Config or {
     ["Fruit Delay"] = 0.4,
     ["Noclip"] = false,
     ["No Knockback"] = false,
+    ["Auto Haki"] = false,
+    ["Haki Key"] = "Q",
+    ["Haki Delay"] = 2,
 }
 
 Config["Fruit Pick"] = type(Config["Fruit Pick"]) == "table" and Config["Fruit Pick"] or {}
@@ -71,6 +75,8 @@ Func.FruitSkip = {}
 Func.FruitSkipAt = {}
 Func.FruitTarget = nil
 Func.SolidHumanoid = nil
+Func.SkillEvent = nil
+Func.HakiAt = 0
 
 function Func:Purge()
     local PlayerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
@@ -570,6 +576,113 @@ function Func:Unsolid()
     Func.SolidHumanoid = nil
 end
 
+function Func:SkillRemote()
+    if Func.SkillEvent and Func.SkillEvent.Parent then
+        return Func.SkillEvent
+    end
+    for _, Object in ReplicatedStorage:GetChildren() do
+        if Object.Name == "" and Object:IsA("RemoteEvent") then
+            Func.SkillEvent = Object
+            return Object
+        end
+    end
+    return nil
+end
+
+function Func:HakiPayload()
+    local Character = LocalPlayer.Character
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    local Camera = workspace.CurrentCamera
+    if not HumanoidRootPart or not Camera then
+        return nil
+    end
+    local Look = CFrame.new(HumanoidRootPart.Position + Vector3.new(0, 5, 0), HumanoidRootPart.Position + Vector3.new(0, 5, -20))
+    return {
+        RayCFrame = Look,
+        RayNormal = Vector3.new(0, 1, 0),
+        CameraCFrame = Camera.CFrame,
+        MouseCFrame = Look,
+        RayCFrameIA = Look,
+        ShiftLock = false,
+        TargetLocalPosition = Vector3.new(0, 0, 0),
+    }
+end
+
+function Func:HakiTarget(Info)
+    local Params = RaycastParams.new()
+    Params.FilterType = Enum.RaycastFilterType.Exclude
+    Params.FilterDescendantsInstances = { LocalPlayer.Character }
+    local Hit = workspace:Raycast(Info.CameraCFrame.Position, Info.CameraCFrame.LookVector * 500, Params)
+    if Hit and Hit.Instance then
+        return Hit.Instance
+    end
+    return workspace
+end
+
+function Func:HakiKey()
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local Menu = PlayerGui and PlayerGui:FindFirstChild("Menu")
+    local Frame = Menu and Menu:FindFirstChild("Frame")
+    local List = Frame and Frame:FindFirstChild("MenuList")
+    local Settings = List and List:FindFirstChild("Settings")
+    local Page = Settings and Settings:FindFirstChild("Frame")
+    local Keybinds = Page and Page:FindFirstChild("Keybinds")
+    local Row = Keybinds and Keybinds:FindFirstChild("Haki")
+    local Button = Row and Row:FindFirstChildWhichIsA("TextButton", true)
+    local Text = Button and Button.Text
+    if type(Text) == "string" and #Text > 0 and #Text <= 12 then
+        return string.upper(Text)
+    end
+    return tostring(Config["Haki Key"] or "Q")
+end
+
+function Func:HakiOn()
+    local Character = LocalPlayer.Character
+    if not Character then
+        return false
+    end
+    if Character:GetAttribute("Haki") == true or Character:GetAttribute("Buso") == true then
+        return true
+    end
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local HealthBar = PlayerGui and (PlayerGui:FindFirstChild("HealthBar") or PlayerGui:FindFirstChild("Healthbar"))
+    local Status = HealthBar and HealthBar:FindFirstChild("Frame")
+    Status = Status and Status:FindFirstChild("Status")
+    local Grid = Status and Status:FindFirstChild("UIGridLayout")
+    local Holder = Grid and Grid.Parent
+    local Effect = Holder and Holder:FindFirstChild("Haki")
+    if Effect and Effect:IsA("GuiObject") and Effect.Visible then
+        return true
+    end
+    return false
+end
+
+function Func:Haki()
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    if not Character or not Humanoid or Humanoid.Health <= 0 then
+        return false
+    end
+    if Func:HakiOn() then
+        return false
+    end
+    if os.clock() - (Func.HakiAt or 0) < 1.5 then
+        return false
+    end
+    local Remote = Func:SkillRemote()
+    local Info = Func:HakiPayload()
+    if not Remote or not Info then
+        return false
+    end
+    Func.HakiAt = os.clock()
+    local Key = Func:HakiKey()
+    local Target = Func:HakiTarget(Info)
+    Remote:FireServer("SkillCaller", { Key, Info, Target, "Start" })
+    task.wait(0.08)
+    Remote:FireServer("SkillCaller", { Key, Info, Target, "End" })
+    return true
+end
+
 function Func:Cycle()
     if not Func:CompassTool() then
         if (tonumber(Func.State.Compass) or 0) < 1 then
@@ -915,6 +1028,16 @@ RunService.Heartbeat:Connect(function()
 end)
 
 task.spawn(function()
+    while task.wait(Config["Haki Delay"]) do
+        pcall(function()
+            if Config["Auto Haki"] then
+                Func:Haki()
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
     while task.wait(Config["Attack Delay"]) do
         pcall(function()
             if Config["Auto Farm Boss"] then
@@ -1089,6 +1212,24 @@ CharacterSection:Toggle({
         if not State then
             Func:Unsolid()
         end
+    end,
+})
+
+CharacterSection:Toggle({
+    Title = "Auto Haki",
+    Desc = "Sends your bound Haki key while Haki is off",
+    Value = Config["Auto Haki"],
+    Callback = function(State)
+        Config["Auto Haki"] = State
+    end,
+})
+
+CharacterSection:Slider({
+    Title = "Haki Delay",
+    Step = 0.5,
+    Value = { Min = 0.5, Max = 10, Default = Config["Haki Delay"] },
+    Callback = function(Value)
+        Config["Haki Delay"] = Value
     end,
 })
 
