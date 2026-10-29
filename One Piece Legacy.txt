@@ -1,0 +1,1187 @@
+-- INIT
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local cloneref = cloneref or function(instance)
+    return instance
+end
+
+-- SERVICES
+local Players = cloneref(game:GetService("Players"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local VirtualUser = cloneref(game:GetService("VirtualUser"))
+local TweenService = cloneref(game:GetService("TweenService"))
+local RunService = cloneref(game:GetService("RunService"))
+
+
+
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local CompassEvent = Remotes:WaitForChild("CompassEvent")
+local CompassStateRequest = Remotes:WaitForChild("CompassStateRequest")
+local DamageEvent = Remotes:WaitForChild("DamageEvent")
+local DroppedFruitPickupRequest = Remotes:WaitForChild("DroppedFruitPickupRequest")
+local CharacterReplicationProbe = Remotes:FindFirstChild("CharacterReplicationProbe")
+local SessionRemote = Remotes:FindFirstChild("SessionEvent")
+
+-- CONFIG
+Config = Config or {
+    ["Anti Telemetry"] = false,
+    ["Auto Farm Box"] = false,
+    ["Auto Farm Boss"] = false,
+    ["Boss"] = "Any Boss",
+    ["Boss Range"] = 100,
+    ["Weapon"] = "",
+    ["Attack Delay"] = 0.15,
+    ["Fast Attack"] = false,
+    ["Attack Rate"] = 20,
+    ["Anti Afk"] = true,
+    ["Auto Fruit"] = false,
+    ["Fruit Pick"] = {},
+    ["Fruit Mode"] = "Tween",
+    ["Fruit Radius"] = 2000,
+    ["Fruit Approach"] = 12,
+    ["Fruit Speed"] = 40,
+    ["Fruit Tween Speed"] = 180,
+    ["Fruit Delay"] = 0.4,
+    ["Noclip"] = false,
+    ["No Knockback"] = false,
+}
+
+Config["Fruit Pick"] = type(Config["Fruit Pick"]) == "table" and Config["Fruit Pick"] or {}
+Config["Fruit Mode"] = Config["Fruit Mode"] or "Tween"
+Config["Fruit Radius"] = Config["Fruit Radius"] or 2000
+Config["Fruit Approach"] = Config["Fruit Approach"] or 12
+Config["Fruit Speed"] = Config["Fruit Speed"] or 40
+Config["Fruit Tween Speed"] = Config["Fruit Tween Speed"] or 180
+Config["Fruit Delay"] = Config["Fruit Delay"] or 0.4
+
+-- FUNCTIONS
+local Func = {}
+Func.Hooked = false
+Func.Target = nil
+Func.SamPosition = nil
+Func.State = {}
+Func.StateAt = 0
+Func.Payload = nil
+Func.BossTarget = nil
+Func.FruitSkip = {}
+Func.FruitSkipAt = {}
+Func.FruitTarget = nil
+Func.SolidHumanoid = nil
+
+function Func:Purge()
+    local PlayerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+    if not PlayerScripts then
+        return
+    end
+    for _, Object in PlayerScripts:GetChildren() do
+        if Object.Name == "CharacterReplicationProbe" or Object.Name == "CharacterRenderStallDetector" then
+            Object:Destroy()
+        end
+    end
+end
+
+function Func:Filter()
+    if Func.Hooked or type(hookmetamethod) ~= "function" then
+        return
+    end
+    Func.Hooked = true
+    local Original
+    Original = hookmetamethod(game, "__namecall", function(Self, ...)
+        if getnamecallmethod() == "FireServer" and typeof(Self) == "Instance" then
+            if Self.Name == "CharacterReplicationProbe" or Self.Name == "CharacterRenderStallReport" then
+                return
+            end
+            if Self.Name == "DamageEvent" then
+                Func.Payload = table.pack(...)
+                local Character = LocalPlayer.Character
+                Func.PayloadWeapon = Character and Character:FindFirstChildOfClass("Tool") or nil
+            end
+        end
+        return Original(Self, ...)
+    end)
+end
+
+function Func:Teleport(Position)
+    local Character = LocalPlayer.Character
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    if not Position or not HumanoidRootPart then
+        return
+    end
+    HumanoidRootPart.CFrame = CFrame.new(Position + Vector3.new(0, 3, 0))
+end
+
+function Func:FixSpawn()
+    local TeleportEvent = Remotes:FindFirstChild("TeleportEvent")
+    if TeleportEvent then
+        TeleportEvent:FireServer(10)
+    end
+end
+
+function Func:RefreshState()
+    local Ok, Result = pcall(function()
+        return CompassStateRequest:InvokeServer()
+    end)
+    if Ok and type(Result) == "table" then
+        Func.State = Result
+        Func.StateAt = os.time()
+    end
+end
+
+function Func:Sam()
+    local Ignore = workspace:FindFirstChild("Ignore")
+    local NPCs = Ignore and Ignore:FindFirstChild("NPCs")
+    local DailyQuest = NPCs and NPCs:FindFirstChild("DailyQuest")
+    local Sam = DailyQuest and DailyQuest:FindFirstChild("Sam")
+    if Sam then
+        Func.SamPosition = Sam:GetPivot().Position
+    end
+    return Sam
+end
+
+function Func:CompassTool()
+    local Character = LocalPlayer.Character
+    if Character then
+        for _, Object in Character:GetChildren() do
+            if Object:IsA("Tool") and Object:GetAttribute("CompassKind") then
+                return Object
+            end
+        end
+    end
+    local Backpack = LocalPlayer:FindFirstChild("Backpack")
+    if Backpack then
+        for _, Object in Backpack:GetChildren() do
+            if Object:IsA("Tool") and Object:GetAttribute("CompassKind") then
+                return Object
+            end
+        end
+    end
+    return nil
+end
+
+function Func:ClaimCompass()
+    local Character = LocalPlayer.Character
+    if not Character then
+        return false
+    end
+    if Func:CompassTool() then
+        return false
+    end
+    local Position = Func.SamPosition
+    if not Position or not SessionRemote then
+        return false
+    end
+    Func:Teleport(Position + Vector3.new(0, 0, 6))
+    task.wait(1)
+    SessionRemote:FireServer("Sam", { "ClaimAmount", Func:Sam(), 1 })
+    task.wait(1.5)
+    Func:RefreshState()
+    return Func:CompassTool() ~= nil
+end
+
+function Func:EquipCompass()
+    local Tool = Func:CompassTool()
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    if not Tool or not Humanoid then
+        return nil
+    end
+    if Tool.Parent ~= Character then
+        Humanoid:EquipTool(Tool)
+        task.wait(0.6)
+    end
+    return Tool
+end
+
+function Func:RequestTarget()
+    local Tool = Func:EquipCompass()
+    if not Tool then
+        return false
+    end
+    Func.Target = nil
+    local Id = Tool:GetAttribute("CompassId")
+    Tool:Activate()
+    task.wait(0.4)
+    CompassEvent:FireServer("RequestTarget", Id)
+    local Deadline = os.clock() + 2
+    while os.clock() < Deadline and not Func.Target do
+        task.wait(0.1)
+    end
+    return Func.Target ~= nil
+end
+
+function Func:GoToTarget()
+    if not Func.Target then
+        return false
+    end
+    local Target = Func.Target
+    if typeof(Target) ~= "Instance" or not Target.Parent then
+        Func.Target = nil
+        return false
+    end
+    Func:Teleport(Target.Position)
+    return true
+end
+
+function Func:CollectFruit()
+    local Tool = Func:CompassTool()
+    local Id = Tool and Tool:GetAttribute("CompassId")
+    local Fruits = workspace:FindFirstChild("Fruits")
+    if not Fruits then
+        return false
+    end
+    for _, Fruit in Fruits:GetChildren() do
+        if Fruit:IsA("Tool") and Id and Fruit:GetAttribute("CompassId") == Id then
+            local Handle = Fruit:FindFirstChild("Handle")
+            Func:Teleport(Handle and Handle.Position or Fruit:GetPivot().Position)
+            return true
+        end
+    end
+    local Target = Func.Target
+    if not Target or not Target.Parent then
+        return false
+    end
+    for _, Fruit in Fruits:GetChildren() do
+        if Fruit:IsA("Tool") then
+            local Handle = Fruit:FindFirstChild("Handle")
+            local Position = Handle and Handle.Position or Fruit:GetPivot().Position
+            if Position and (Position - Target.Position).Magnitude < 80 then
+                Func:Teleport(Position)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function Func:FruitNames()
+    local Fruits = workspace:FindFirstChild("Fruits")
+    local List = {}
+    local Seen = {}
+    if Fruits then
+        for _, Fruit in Fruits:GetChildren() do
+            if Fruit:IsA("Tool") and type(Fruit:GetAttribute("FruitId")) == "string" then
+                local Name = Fruit:GetAttribute("FruitName") or Fruit.Name
+                if not Seen[Name] then
+                    Seen[Name] = true
+                    List[#List + 1] = Name
+                end
+            end
+        end
+    end
+    table.sort(List)
+    return List
+end
+
+function Func:FruitWanted(Fruit)
+    local Pick = Config["Fruit Pick"]
+    if type(Pick) ~= "table" or #Pick == 0 then
+        return true
+    end
+    local Name = Fruit:GetAttribute("FruitName") or Fruit.Name
+    for _, Value in Pick do
+        if Value == Name then
+            return true
+        end
+    end
+    return false
+end
+
+function Func:FruitBlocked(Id)
+    local Count = Func.FruitSkip[Id]
+    local At = Func.FruitSkipAt[Id]
+    if not Count or not At then
+        return false
+    end
+    if os.clock() - At > 30 then
+        Func.FruitSkip[Id] = nil
+        Func.FruitSkipAt[Id] = nil
+        return false
+    end
+    return Count >= 3
+end
+
+function Func:FruitGrounded(Handle, Fruit)
+    local Params = RaycastParams.new()
+    Params.FilterType = Enum.RaycastFilterType.Exclude
+    Params.FilterDescendantsInstances = { Fruit, LocalPlayer.Character }
+    return workspace:Raycast(Handle.Position, Vector3.new(0, -60, 0), Params) ~= nil
+end
+
+function Func:FindFruit()
+    local Fruits = workspace:FindFirstChild("Fruits")
+    local Character = LocalPlayer.Character
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    if not Fruits or not HumanoidRootPart then
+        return nil
+    end
+    local Best, BestDistance = nil, nil
+    local Radius = math.max(10, tonumber(Config["Fruit Radius"]) or 150)
+    for _, Fruit in Fruits:GetChildren() do
+        local Id = Fruit:GetAttribute("FruitId")
+        if Fruit:IsA("Tool") and type(Id) == "string" and Fruit:GetAttribute("OPLRitualPlaced") ~= true then
+            local Handle = Fruit:FindFirstChild("Handle")
+            if Handle and Func:FruitWanted(Fruit) and not Func:FruitBlocked(Id) then
+                local Distance = (Handle.Position - HumanoidRootPart.Position).Magnitude
+                if Distance <= Radius and (not BestDistance or Distance < BestDistance) and Func:FruitGrounded(Handle, Fruit) then
+                    Best, BestDistance = Fruit, Distance
+                end
+            end
+        end
+    end
+    return Best, BestDistance
+end
+
+function Func:SyncPosition()
+    if not CharacterReplicationProbe then
+        return false
+    end
+    local Character = LocalPlayer.Character
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then
+        return false
+    end
+    CharacterReplicationProbe:FireServer(HumanoidRootPart.Position)
+    return true
+end
+
+function Func:PickFruit(Fruit)
+    local Handle = Fruit:FindFirstChild("Handle")
+    if not Handle then
+        return false
+    end
+    local Character = LocalPlayer.Character
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    local Distance = HumanoidRootPart and (Handle.Position - HumanoidRootPart.Position).Magnitude or 10
+    Func:SyncPosition()
+    task.wait(0.25)
+    local Detector = Handle:FindFirstChild("OPLFruitPickup") or Fruit:FindFirstChildWhichIsA("ClickDetector", true)
+    if Detector and type(fireclickdetector) == "function" then
+        fireclickdetector(Detector, math.clamp(math.floor(Distance), 1, 14))
+    end
+    local Id = Fruit:GetAttribute("FruitId")
+    if Id then
+        DroppedFruitPickupRequest:FireServer(Id)
+    end
+    return true
+end
+
+function Func:TweenTo(Position)
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    if not Position or not Humanoid or not HumanoidRootPart then
+        return false
+    end
+    local Speed = math.max(60, tonumber(Config["Fruit Tween Speed"]) or 180)
+    local Target = CFrame.new(Position + Vector3.new(0, 3, 0))
+    local Distance = (Target.Position - HumanoidRootPart.Position).Magnitude
+    local Time = math.clamp(Distance / Speed, 0.2, 25)
+    local Stand = Humanoid.PlatformStand
+    Humanoid.PlatformStand = true
+    local Tween = TweenService:Create(HumanoidRootPart, TweenInfo.new(Time, Enum.EasingStyle.Linear), { CFrame = Target })
+    Tween:Play()
+    local Deadline = os.clock() + Time + 1
+    while os.clock() < Deadline do
+        if (Target.Position - HumanoidRootPart.Position).Magnitude <= 2 then
+            break
+        end
+        task.wait(0.05)
+    end
+    Tween:Cancel()
+    Humanoid.PlatformStand = Stand
+    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    return true
+end
+
+function Func:WalkFruit(Fruit)
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    local Handle = Fruit:FindFirstChild("Handle")
+    if not Humanoid or not HumanoidRootPart or not Handle then
+        return false
+    end
+    local Speed = math.max(16, tonumber(Config["Fruit Speed"]) or 40)
+    local Keep = Humanoid.WalkSpeed
+    Humanoid.WalkSpeed = Speed
+    local Deadline = os.clock() + 20
+    while os.clock() < Deadline and Fruit.Parent do
+        if (Handle.Position - HumanoidRootPart.Position).Magnitude <= 8 then
+            break
+        end
+        Humanoid:MoveTo(Handle.Position)
+        task.wait(0.35)
+    end
+    Humanoid.WalkSpeed = Keep
+    if not Fruit.Parent then
+        return true
+    end
+    if (Handle.Position - HumanoidRootPart.Position).Magnitude <= 14 then
+        Func:PickFruit(Fruit)
+        task.wait(0.4)
+    end
+    return true
+end
+
+function Func:FruitCycle()
+    local Fruit = Func:FindFruit()
+    Func.FruitTarget = Fruit
+    if not Fruit then
+        return false
+    end
+    local Handle = Fruit:FindFirstChild("Handle")
+    if not Handle then
+        return false
+    end
+    local Mode = Config["Fruit Mode"]
+    if Mode == "Teleport" then
+        Func:Teleport(Handle.Position)
+        task.wait(0.15)
+        Func:PickFruit(Fruit)
+        task.wait(0.35)
+    elseif Mode == "Walk" then
+        Func:WalkFruit(Fruit)
+    else
+        local Approach = math.max(6, tonumber(Config["Fruit Approach"]) or 12)
+        local Character = LocalPlayer.Character
+        local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+        if HumanoidRootPart then
+            local Direction = HumanoidRootPart.Position - Handle.Position
+            Direction = Vector3.new(Direction.X, 0, Direction.Z)
+            if Direction.Magnitude < 1 then
+                Direction = Vector3.new(1, 0, 0)
+            end
+            Func:TweenTo(Handle.Position + Direction.Unit * Approach)
+        end
+        task.wait(0.35)
+        if Fruit.Parent and HumanoidRootPart and (Handle.Position - HumanoidRootPart.Position).Magnitude <= 14 then
+            Func:PickFruit(Fruit)
+            task.wait(0.5)
+        end
+    end
+    local Id = Fruit:GetAttribute("FruitId")
+    if Fruit.Parent and Id then
+        Func.FruitSkip[Id] = (Func.FruitSkip[Id] or 0) + 1
+        Func.FruitSkipAt[Id] = os.clock()
+    end
+    return true
+end
+
+function Func:CharacterParts()
+    local Character = LocalPlayer.Character
+    if not Character then
+        return {}
+    end
+    local List = {}
+    for _, Object in Character:GetChildren() do
+        if Object:IsA("BasePart") then
+            List[#List + 1] = Object
+        end
+    end
+    return List
+end
+
+function Func:Noclip()
+    local Character = LocalPlayer.Character
+    if not Character then
+        return
+    end
+    for _, Part in Func:CharacterParts() do
+        if Part.CanCollide then
+            Part.CanCollide = false
+        end
+    end
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+    if not HumanoidRootPart then
+        return
+    end
+    local Params = RaycastParams.new()
+    Params.FilterType = Enum.RaycastFilterType.Exclude
+    Params.FilterDescendantsInstances = { Character }
+    local Hit = workspace:Raycast(HumanoidRootPart.Position, Vector3.new(0, -120, 0), Params)
+    if not Hit then
+        return
+    end
+    local Height = HumanoidRootPart.Position.Y - Hit.Position.Y
+    if Height < -1 or Height > 6 then
+        local Position = HumanoidRootPart.Position
+        HumanoidRootPart.CFrame = CFrame.new(Position.X, Hit.Position.Y + 3, Position.Z)
+        local Velocity = HumanoidRootPart.AssemblyLinearVelocity
+        HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(Velocity.X, 0, Velocity.Z)
+    end
+end
+
+function Func:Solid()
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    if not Humanoid or not HumanoidRootPart then
+        return
+    end
+    if Func.SolidHumanoid ~= Humanoid then
+        Func.SolidHumanoid = Humanoid
+        for _, State in ipairs({
+            Enum.HumanoidStateType.FallingDown,
+            Enum.HumanoidStateType.Ragdoll,
+            Enum.HumanoidStateType.Physics,
+            Enum.HumanoidStateType.PlatformStanding,
+        }) do
+            Humanoid:SetStateEnabled(State, false)
+        end
+        for _, Part in Func:CharacterParts() do
+            Part.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0, 1, 1)
+        end
+    end
+    if Humanoid.MoveDirection.Magnitude < 0.1 and not Humanoid.Jump then
+        local Velocity = HumanoidRootPart.AssemblyLinearVelocity
+        if math.abs(Velocity.X) > 1 or math.abs(Velocity.Z) > 1 then
+            HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, Velocity.Y, 0)
+        end
+    end
+end
+
+function Func:Unnoclip()
+    for _, Part in Func:CharacterParts() do
+        if not string.find(Part.Name, "^CC_") then
+            Part.CanCollide = true
+        end
+    end
+end
+
+function Func:Unsolid()
+    for _, Part in Func:CharacterParts() do
+        Part.CustomPhysicalProperties = nil
+    end
+    local Humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if Humanoid then
+        for _, State in ipairs({
+            Enum.HumanoidStateType.FallingDown,
+            Enum.HumanoidStateType.Ragdoll,
+            Enum.HumanoidStateType.Physics,
+            Enum.HumanoidStateType.PlatformStanding,
+        }) do
+            Humanoid:SetStateEnabled(State, true)
+        end
+    end
+    Func.SolidHumanoid = nil
+end
+
+function Func:Cycle()
+    if not Func:CompassTool() then
+        if (tonumber(Func.State.Compass) or 0) < 1 then
+            Func:RefreshState()
+        end
+        if (tonumber(Func.State.Compass) or 0) < 1 then
+            return false
+        end
+        return Func:ClaimCompass()
+    end
+    if not Func.Target then
+        if not Func:RequestTarget() then
+            return false
+        end
+    end
+    Func:GoToTarget()
+    Func:CollectFruit()
+    return true
+end
+
+function Func:Countdown()
+    local NextAt = tonumber(Func.State.CompassNextGrantAt) or 0
+    local Left = NextAt - os.time()
+    if Left <= 0 then
+        return "READY"
+    end
+    return string.format("%dm %02ds (%s)", math.floor(Left / 60), Left % 60, os.date("%H:%M:%S", NextAt))
+end
+
+function Func:FindBoss(Name)
+    local Alive = workspace:FindFirstChild("Alive")
+    if not Alive then
+        return nil
+    end
+    local Character = LocalPlayer.Character
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    local Best, BestDistance = nil, nil
+    for _, Model in Alive:GetChildren() do
+        if Model:GetAttribute("OPLBossEncounterId") then
+            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+            local Root = Model:FindFirstChild("HumanoidRootPart")
+            if Humanoid and Humanoid.Health > 0 and Root then
+                local Match = Name == "Any Boss" or string.find(string.lower(Model.Name), string.lower(Name), 1, true)
+                if Match then
+                    local Distance = HumanoidRootPart and (Root.Position - HumanoidRootPart.Position).Magnitude or 0
+                    if not BestDistance or Distance < BestDistance then
+                        Best, BestDistance = Model, Distance
+                    end
+                end
+            end
+        end
+    end
+    return Best
+end
+
+function Func:Weapons()
+    local List = {}
+    local Seen = {}
+    local Character = LocalPlayer.Character
+    if Character then
+        for _, Object in Character:GetChildren() do
+            if Object:IsA("Tool") and not Object:GetAttribute("CompassKind") then
+                List[#List + 1] = Object.Name
+                Seen[Object.Name] = true
+            end
+        end
+    end
+    local Backpack = LocalPlayer:FindFirstChild("Backpack")
+    if Backpack then
+        for _, Object in Backpack:GetChildren() do
+            if Object:IsA("Tool") and not Object:GetAttribute("CompassKind") and not Seen[Object.Name] then
+                List[#List + 1] = Object.Name
+                Seen[Object.Name] = true
+            end
+        end
+    end
+    table.sort(List)
+    return List
+end
+
+function Func:EquipWeapon()
+    local Name = Config["Weapon"]
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    if not Humanoid then
+        return nil
+    end
+    local Equipped = Character:FindFirstChildOfClass("Tool")
+    if Name == "" then
+        return Equipped
+    end
+    if Equipped and Equipped.Name == Name then
+        return Equipped
+    end
+    local Backpack = LocalPlayer:FindFirstChild("Backpack")
+    local Tool = Backpack and Backpack:FindFirstChild(Name)
+    if not Tool then
+        return Equipped
+    end
+    Humanoid:EquipTool(Tool)
+    task.wait(0.15)
+    return Tool
+end
+
+function Func:Attack()
+    local Tool = Func:EquipWeapon()
+    if not Tool then
+        return false
+    end
+    if Func.Payload and Func.PayloadWeapon == Tool then
+        DamageEvent:FireServer(table.unpack(Func.Payload, 1, Func.Payload.n))
+        return true
+    end
+    Tool:Activate()
+    return true
+end
+
+function Func:FastAttack()
+    local Tool = Func:EquipWeapon()
+    if not Tool then
+        return false
+    end
+    if Func.Payload and Func.PayloadWeapon == Tool then
+        DamageEvent:FireServer(table.unpack(Func.Payload, 1, Func.Payload.n))
+    else
+        Tool:Activate()
+    end
+    return true
+end
+
+function Func:BossCycle()
+    local Boss = Func:FindBoss(Config["Boss"] or "Any Boss")
+    Func.BossTarget = Boss
+    if not Boss then
+        return false
+    end
+    local Root = Boss:FindFirstChild("HumanoidRootPart")
+    local Character = LocalPlayer.Character
+    local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    if not Root or not HumanoidRootPart or not Humanoid then
+        return false
+    end
+    if Humanoid.Sit then
+        Humanoid.Sit = false
+        Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+    local Range = math.max(5, tonumber(Config["Boss Range"]) or 100)
+    if (Root.Position - HumanoidRootPart.Position).Magnitude > Range * 0.6 then
+        HumanoidRootPart.CFrame = CFrame.lookAt(Root.Position + Vector3.new(0, 0, Range), Root.Position)
+    else
+        HumanoidRootPart.CFrame = CFrame.lookAt(HumanoidRootPart.Position, Root.Position)
+    end
+    Func:Attack()
+    return true
+end
+
+function Func:BossText()
+    local Boss = Func.BossTarget
+    if not Boss or not Boss.Parent then
+        return "Boss: none"
+    end
+    local Humanoid = Boss:FindFirstChildOfClass("Humanoid")
+    if not Humanoid then
+        return "Boss: " .. Boss.Name
+    end
+    return string.format("Boss: %s  %s/%s", Boss.Name, tostring(math.floor(Humanoid.Health)), tostring(math.floor(Humanoid.MaxHealth)))
+end
+
+function Func:AliveBossText()
+    local Alive = workspace:FindFirstChild("Alive")
+    if not Alive then
+        return "Alive: none"
+    end
+    local Count = {}
+    local Order = {}
+    for _, Model in Alive:GetChildren() do
+        if Model:GetAttribute("OPLBossEncounterId") then
+            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+            if Humanoid and Humanoid.Health > 0 then
+                local Name = Model.Name:gsub("^Lv%d+%s+", ""):gsub("%s*%[.*%]$", "")
+                if not Count[Name] then
+                    Count[Name] = 0
+                    table.insert(Order, Name)
+                end
+                Count[Name] += 1
+            end
+        end
+    end
+    if #Order == 0 then
+        return "Alive: none"
+    end
+    table.sort(Order)
+    local Parts = {}
+    for _, Name in ipairs(Order) do
+        if Count[Name] > 1 then
+            Parts[#Parts + 1] = Name .. " x" .. tostring(Count[Name])
+        else
+            Parts[#Parts + 1] = Name
+        end
+    end
+    return "Alive: " .. table.concat(Parts, ", ")
+end
+
+function Func:StatusText()
+    local Tool = Func:CompassTool()
+    return string.format(
+        "Compass %s/%s  |  Next: %s\nTool: %s  |  Target: %s\n%s\n%s",
+        tostring(Func.State.Compass or 0),
+        tostring(Func.State.CompassStorage or 0),
+        Func:Countdown(),
+        Tool and Tool.Name or "none",
+        Func.Target and Func.Target.Name or "-",
+        Func:BossText(),
+        Func:AliveBossText()
+    )
+end
+
+getgenv().OPL = Func
+Func.Config = Config
+
+-- CONNECTIONS
+CompassEvent.OnClientEvent:Connect(function(Mode, Id, Target)
+    if Mode == "Show" and typeof(Target) == "Instance" then
+        Func.Target = Target
+    elseif Mode == "Clear" or Mode == "Complete" then
+        Func.Target = nil
+    end
+end)
+
+LocalPlayer.Idled:Connect(function()
+    if not Config["Anti Afk"] then
+        return
+    end
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    Func:Purge()
+    Func:FixSpawn()
+end)
+
+-- LOOPS
+if Config["Anti Telemetry"] then
+    Func:Filter()
+    Func:Purge()
+end
+Func:Sam()
+Func:RefreshState()
+
+local StatusParagraph
+local WeaponDropdown
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            if Config["Anti Telemetry"] then
+                Func:Filter()
+                Func:Purge()
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(5) do
+        pcall(function()
+            Func:RefreshState()
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            if not StatusParagraph then
+                return
+            end
+            StatusParagraph:SetDesc(Func:StatusText())
+        end)
+    end
+end)
+
+task.spawn(function()
+    local Last = ""
+    while task.wait(3) do
+        pcall(function()
+            if not WeaponDropdown then
+                return
+            end
+            local List = Func:Weapons()
+            if #List == 0 then
+                List = { "No weapon" }
+            end
+            local Key = table.concat(List, "|")
+            if Key ~= Last then
+                Last = Key
+                WeaponDropdown:Refresh(List)
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(2) do
+        pcall(function()
+            if Config["Auto Farm Box"] then
+                Func:Cycle()
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(Config["Fruit Delay"]) do
+        pcall(function()
+            if Config["Auto Fruit"] then
+                Func:FruitCycle()
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.15) do
+        pcall(function()
+            if Config["Noclip"] then
+                Func:Noclip()
+            end
+        end)
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if not Config["No Knockback"] then
+        return
+    end
+    pcall(function()
+        Func:Solid()
+    end)
+end)
+
+task.spawn(function()
+    while task.wait(Config["Attack Delay"]) do
+        pcall(function()
+            if Config["Auto Farm Boss"] then
+                Func:BossCycle()
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        local Rate = math.max(1, tonumber(Config["Attack Rate"]) or 20)
+        task.wait(1 / Rate)
+        pcall(function()
+            if Config["Fast Attack"] then
+                Func:FastAttack()
+            end
+        end)
+    end
+end)
+
+-- UI
+local Ok, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+end)
+
+if not Ok or not WindUI then
+    return
+end
+
+local Window = WindUI:CreateWindow({
+    Title = "One Piece Legacy",
+    Icon = "compass",
+    Author = "vex",
+    Folder = "OPL",
+    ToggleKey = Enum.KeyCode.LeftShift,
+    Theme = "Dark",
+})
+
+local FarmTab = Window:Tab({ Title = "Farm", Icon = "map" })
+FarmTab:Select()
+
+local StatusSection = FarmTab:Section({ Title = "Status", Opened = true })
+
+StatusParagraph = StatusSection:Paragraph({
+    Title = "Compass Timer",
+    Desc = Func:StatusText(),
+})
+
+local CompassSection = FarmTab:Section({ Title = "Compass", Opened = true })
+
+CompassSection:Toggle({
+    Title = "Auto Farm Box",
+    Desc = "Claim -> Activate -> Request Target -> Teleport -> Fruit",
+    Value = Config["Auto Farm Box"],
+    Callback = function(State)
+        Config["Auto Farm Box"] = State
+    end,
+})
+
+local FruitSection = FarmTab:Section({ Title = "Fruit", Opened = true })
+
+FruitSection:Toggle({
+    Title = "Auto Collect Fruit",
+    Desc = "Teleports to a matching fruit and picks it up",
+    Value = Config["Auto Fruit"],
+    Callback = function(State)
+        Config["Auto Fruit"] = State
+    end,
+})
+
+local FruitValues = Func:FruitNames()
+if #FruitValues == 0 then
+    FruitValues = { "No fruit" }
+end
+
+local FruitDropdown = FruitSection:Dropdown({
+    Title = "Fruit",
+    Values = FruitValues,
+    Value = Config["Fruit Pick"],
+    Multi = true,
+    Callback = function(Value)
+        Config["Fruit Pick"] = Value
+    end,
+})
+
+FruitSection:Button({
+    Title = "Refresh Fruit List",
+    Callback = function()
+        local List = Func:FruitNames()
+        if #List == 0 then
+            List = { "No fruit" }
+        end
+        FruitDropdown:Refresh(List)
+    end,
+})
+
+FruitSection:Dropdown({
+    Title = "Move Mode",
+    Values = { "Tween", "Walk", "Teleport" },
+    Value = Config["Fruit Mode"],
+    Callback = function(Value)
+        Config["Fruit Mode"] = Value
+    end,
+})
+
+FruitSection:Slider({
+    Title = "Tween Speed",
+    Step = 10,
+    Value = { Min = 60, Max = 600, Default = Config["Fruit Tween Speed"] },
+    Callback = function(Value)
+        Config["Fruit Tween Speed"] = Value
+    end,
+})
+
+FruitSection:Slider({
+    Title = "Approach Distance",
+    Step = 2,
+    Value = { Min = 6, Max = 120, Default = Config["Fruit Approach"] },
+    Callback = function(Value)
+        Config["Fruit Approach"] = Value
+    end,
+})
+
+FruitSection:Slider({
+    Title = "Walk Speed",
+    Step = 5,
+    Value = { Min = 16, Max = 120, Default = Config["Fruit Speed"] },
+    Callback = function(Value)
+        Config["Fruit Speed"] = Value
+    end,
+})
+
+FruitSection:Slider({
+    Title = "Fruit Radius",
+    Step = 10,
+    Value = { Min = 10, Max = 2000, Default = Config["Fruit Radius"] },
+    Callback = function(Value)
+        Config["Fruit Radius"] = Value
+    end,
+})
+
+FruitSection:Slider({
+    Title = "Fruit Delay",
+    Step = 0.05,
+    Value = { Min = 0.1, Max = 3, Default = Config["Fruit Delay"] },
+    Callback = function(Value)
+        Config["Fruit Delay"] = Value
+    end,
+})
+
+local CharacterSection = FarmTab:Section({ Title = "Character", Opened = true })
+
+CharacterSection:Toggle({
+    Title = "Noclip",
+    Desc = "Walks through walls and parts",
+    Value = Config["Noclip"],
+    Callback = function(State)
+        Config["Noclip"] = State
+        if not State then
+            Func:Unnoclip()
+        end
+    end,
+})
+
+CharacterSection:Toggle({
+    Title = "No Knockback",
+    Desc = "Heavy body, no ragdoll, no push",
+    Value = Config["No Knockback"],
+    Callback = function(State)
+        Config["No Knockback"] = State
+        if not State then
+            Func:Unsolid()
+        end
+    end,
+})
+
+local BossSection = FarmTab:Section({ Title = "Boss", Opened = true })
+
+local BossValues = {
+    "Any Boss",
+    "Common Sea Beast",
+    "Uncommon Sea Beast",
+    "Rare Sea Beast",
+    "Epic Sea Beast",
+    "Ultra Rare Sea Beast",
+    "Pursuer",
+    "Golden Skull",
+    "Kaizu",
+    "Old Garp",
+    "Prime Garp",
+}
+
+local Alive = workspace:FindFirstChild("Alive")
+if Alive then
+    local Seen = {}
+    for _, Value in ipairs(BossValues) do
+        Seen[string.lower(Value)] = true
+    end
+    for _, Model in Alive:GetChildren() do
+        if Model:GetAttribute("OPLBossEncounterId") then
+            local Name = Model.Name:gsub("^Lv%d+%s+", ""):gsub("%s*%[.*%]$", "")
+            if not Seen[string.lower(Name)] then
+                Seen[string.lower(Name)] = true
+                table.insert(BossValues, Name)
+            end
+        end
+    end
+end
+
+BossSection:Dropdown({
+    Title = "Boss",
+    Values = BossValues,
+    Value = Config["Boss"],
+    Callback = function(Value)
+        Config["Boss"] = Value
+    end,
+})
+
+local WeaponValues = Func:Weapons()
+if #WeaponValues == 0 then
+    WeaponValues = { "No weapon" }
+end
+
+WeaponDropdown = BossSection:Dropdown({
+    Title = "Weapon",
+    Values = WeaponValues,
+    Value = Config["Weapon"] ~= "" and Config["Weapon"] or WeaponValues[1],
+    Callback = function(Value)
+        Config["Weapon"] = Value
+    end,
+})
+
+BossSection:Toggle({
+    Title = "Auto Farm Boss",
+    Desc = "Teleports to the selected boss and attacks",
+    Value = Config["Auto Farm Boss"],
+    Callback = function(State)
+        Config["Auto Farm Boss"] = State
+    end,
+})
+
+BossSection:Slider({
+    Title = "Boss Range",
+    Step = 5,
+    Value = { Min = 5, Max = 250, Default = Config["Boss Range"] },
+    Callback = function(Value)
+        Config["Boss Range"] = Value
+    end,
+})
+
+local CombatSection = FarmTab:Section({ Title = "Combat", Opened = true })
+
+CombatSection:Toggle({
+    Title = "Fast Attack",
+    Desc = "Fires DamageEvent at the configured rate",
+    Value = Config["Fast Attack"],
+    Callback = function(State)
+        Config["Fast Attack"] = State
+    end,
+})
+
+CombatSection:Slider({
+    Title = "Attack Rate",
+    Step = 1,
+    Value = { Min = 1, Max = 60, Default = Config["Attack Rate"] },
+    Callback = function(Value)
+        Config["Attack Rate"] = Value
+    end,
+})
