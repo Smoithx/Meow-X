@@ -48,9 +48,10 @@ Config = Config or {
     ["Fruit Delay"] = 0.4,
     ["Noclip"] = false,
     ["No Knockback"] = false,
+    ["No Sit"] = true,
     ["Auto Haki"] = false,
-    ["Haki Key"] = "Q",
-    ["Haki Delay"] = 2,
+    ["Haki Key"] = "R",
+    ["Haki Delay"] = 1,
 }
 
 Config["Fruit Pick"] = type(Config["Fruit Pick"]) == "table" and Config["Fruit Pick"] or {}
@@ -633,19 +634,26 @@ function Func:HakiKey()
     local Settings = List and List:FindFirstChild("Settings")
     local Page = Settings and Settings:FindFirstChild("Frame")
     local Keybinds = Page and Page:FindFirstChild("Keybinds")
-    local Row = Keybinds and Keybinds:FindFirstChild("Haki")
+    local Row = Keybinds and Keybinds:FindFirstChild("Observation")
     local Button = Row and Row:FindFirstChildWhichIsA("TextButton", true)
     local Text = Button and Button.Text
     if type(Text) == "string" and #Text > 0 and #Text <= 12 then
         return string.upper(Text)
     end
-    return tostring(Config["Haki Key"] or "Q")
+    local Key = Config["Haki Key"]
+    if type(Key) == "string" and #Key > 0 then
+        return string.upper(Key)
+    end
+    return "R"
 end
 
 function Func:HakiOn()
     local Character = LocalPlayer.Character
     if not Character then
         return false
+    end
+    if Character:GetAttribute("Observation") == true then
+        return true
     end
     if Character:GetAttribute("Haki") == true or Character:GetAttribute("Buso") == true then
         return true
@@ -666,20 +674,50 @@ function Func:Haki()
     if Func:HakiOn() then
         return false
     end
-    if os.clock() - (Func.HakiAt or 0) < 1.5 then
+    if os.clock() - (getgenv().OPL_HakiAt or 0) < 1 then
         return false
     end
     local Remote = Func:SkillRemote()
-    local Info = Func:HakiPayload()
-    if not Remote or not Info then
+    if not Remote then
         return false
     end
-    Func.HakiAt = os.clock()
     local Key = Func:HakiKey()
-    local Target = Func:HakiTarget(Info)
-    Remote:FireServer("SkillCaller", { Key, Info, Target, "Start" })
-    task.wait(0.08)
-    Remote:FireServer("SkillCaller", { Key, Info, Target, "End" })
+    for _ = 1, 2 do
+        if Func:HakiOn() then
+            return true
+        end
+        local Info = Func:HakiPayload()
+        if not Info then
+            return false
+        end
+        Func.HakiAt = os.clock()
+        getgenv().OPL_HakiAt = os.clock()
+        local Target = Func:HakiTarget(Info)
+        Remote:FireServer("SkillCaller", { Key, Info, Target, "Start" })
+        task.wait(0.1)
+        Remote:FireServer("SkillCaller", { Key, Info, Target, "End" })
+        local Deadline = os.clock() + 1.5
+        while os.clock() < Deadline do
+            if Func:HakiOn() then
+                return true
+            end
+            task.wait(0.1)
+        end
+    end
+    return Func:HakiOn()
+end
+
+function Func:Unsit()
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    if not Humanoid or not Humanoid.Sit then
+        return false
+    end
+    Humanoid.Sit = false
+    Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    if Humanoid.SeatPart then
+        Humanoid.Jump = true
+    end
     return true
 end
 
@@ -1035,6 +1073,16 @@ RunService.Heartbeat:Connect(function()
 end)
 
 task.spawn(function()
+    while task.wait(0.2) do
+        pcall(function()
+            if Config["No Sit"] then
+                Func:Unsit()
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
     while task.wait(Config["Haki Delay"]) do
         pcall(function()
             if Config["Auto Haki"] then
@@ -1223,8 +1271,17 @@ CharacterSection:Toggle({
 })
 
 CharacterSection:Toggle({
+    Title = "No Sit",
+    Desc = "Stands up whenever the character is seated",
+    Value = Config["No Sit"],
+    Callback = function(State)
+        Config["No Sit"] = State
+    end,
+})
+
+CharacterSection:Toggle({
     Title = "Auto Haki",
-    Desc = "Sends your bound Haki key while Haki is off",
+    Desc = "Sends your Haki key (R) while it is off",
     Value = Config["Auto Haki"],
     Callback = function(State)
         Config["Auto Haki"] = State
