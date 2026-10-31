@@ -24,6 +24,10 @@ local GunOk, GunResult = pcall(require, ReplicatedStorage.Modules.Client.Control
 local GunController = GunOk and GunResult or nil
 local HostilityOk, HostilityResult = pcall(require, ReplicatedStorage.Modules.Shared.Combat.Hostility)
 local Hostility = HostilityOk and HostilityResult or nil
+-- The game's own touch controller knows exactly when the on-screen FIRE button is held, which
+-- is the only reliable "we are shooting" signal on a phone.
+local MobileOk, MobileResult = pcall(require, ReplicatedStorage.Modules.Client.Controllers.MobileInputController)
+local MobileInputController = MobileOk and MobileResult or nil
 
 -- CONFIG
 Config = Config or {
@@ -35,7 +39,7 @@ Config = Config or {
     ["Max Distance"] = 1000,
     ["Aimbot"] = false,
     ["Aim Part"] = "Head",
-    ["FOV Radius"] = 220,
+    ["FOV Radius"] = 40,
     ["Aim Smooth"] = 40,
     ["Aim Assist Angle"] = 55,
     ["Aim Muzzle Comp"] = true,
@@ -43,16 +47,18 @@ Config = Config or {
     ["Menu Key"] = Enum.KeyCode.RightShift,
 }
 
-if Config["Config Version"] ~= 2 then
-    Config["Config Version"] = 2
-    Config["FOV Radius"] = 220
+-- 40 px is the default because the UI targets phones, where a 220 px circle covers most of
+-- the screen. Existing configs are migrated once so the smaller default actually applies.
+if Config["Config Version"] ~= 3 then
+    Config["Config Version"] = 3
+    Config["FOV Radius"] = 40
     Config["Aim Smooth"] = 40
     Config["Aim Assist Angle"] = 55
 end
 
 local Func = {}
 local Ranges = { 250, 500, 1000, 2500 }
-local FOVOptions = { 220, 160, 120, 90, 60, 40, 30, 20 }
+local FOVOptions = { 20, 30, 40, 60, 90, 120, 160, 220 }
 local SmoothOptions = { 0, 20, 40, 55, 60, 70, 80, 90, 95 }
 local PartNames = {
     Head = true,
@@ -72,7 +78,12 @@ local PartNames = {
     RightFoot = true,
 }
 local RigPrefix = "MercHitboxes_"
+local PanelWidth = 292
 local PanelHeight = 592
+-- Smallest the panel is allowed to shrink to on a phone. Below this the labels stop being
+-- legible, so the panel keeps this scale and the content scrolls instead.
+local MinUIScale = 0.75
+local ViewportMargin = 24
 local Palette = {
     Background = Color3.fromRGB(8, 13, 15),
     Surface = Color3.fromRGB(13, 21, 24),
@@ -494,10 +505,15 @@ function Func:BuildUI()
     local Gui = Instance.new("ScreenGui")
     Gui.Name = "PrismPlayerIntel"
     Gui.ResetOnSpawn = false
-    Gui.IgnoreGuiInset = true
+    -- The overlay is positioned in viewport pixels (WorldToViewportPoint), so the GUI must
+    -- start at the viewport origin. Ignoring the inset would push everything 58 px up on a
+    -- windowed client and knock the ESP boxes and the FOV circle off the crosshair.
+    Gui.IgnoreGuiInset = false
     Gui.DisplayOrder = 999
     Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    Gui.Enabled = Config["Menu"] == true
+    -- The ScreenGui stays enabled so the ESP boxes and the FOV circle keep drawing while the
+    -- menu itself is closed; only the panel is hidden.
+    Gui.Enabled = true
     Gui.Parent = PlayerGui
     Func.UI.Gui = Gui
     local Overlay = Instance.new("Frame")
@@ -559,14 +575,50 @@ function Func:BuildUI()
     local Panel = Instance.new("Frame")
     Panel.Name = "Panel"
     Panel.Position = UDim2.fromOffset(24, 16)
-    Panel.Size = UDim2.fromOffset(292, PanelHeight)
+    Panel.Size = UDim2.fromOffset(PanelWidth, PanelHeight)
     Panel.BackgroundColor3 = Palette.Background
     Panel.BackgroundTransparency = 0.03
     Panel.BorderSizePixel = 0
     Panel.ClipsDescendants = false
     Panel.ZIndex = 100
+    Panel.Visible = Config["Menu"] == true
     Panel.Parent = Gui
     Func.UI.Panel = Panel
+    -- The panel is authored at a fixed 292x592 and scaled as a whole, so the layout never has
+    -- to be rewritten per device. The ESP boxes and the FOV circle stay outside this scale
+    -- because they are positioned in real viewport pixels.
+    local PanelScale = Instance.new("UIScale")
+    PanelScale.Scale = 1
+    PanelScale.Parent = Panel
+    Func.UI.PanelScale = PanelScale
+    -- A phone has no RightShift, so touch devices get a small floating button for the menu.
+    if UserInputService.TouchEnabled then
+        local Toggle = Instance.new("TextButton")
+        Toggle.Name = "MenuToggle"
+        Toggle.AnchorPoint = Vector2.new(1, 0)
+        Toggle.Position = UDim2.new(1, -10, 0, 10)
+        Toggle.Size = UDim2.fromOffset(46, 30)
+        Toggle.BackgroundColor3 = Palette.Surface
+        Toggle.BackgroundTransparency = 0.2
+        Toggle.AutoButtonColor = false
+        Toggle.Text = "MENU"
+        Toggle.TextColor3 = Palette.Accent
+        Toggle.Font = Enum.Font.GothamBold
+        Toggle.TextSize = 9
+        Toggle.ZIndex = 300
+        Toggle.Parent = Gui
+        local ToggleCorner = Instance.new("UICorner")
+        ToggleCorner.CornerRadius = UDim.new(0, 9)
+        ToggleCorner.Parent = Toggle
+        local ToggleStroke = Instance.new("UIStroke")
+        ToggleStroke.Color = Palette.Stroke
+        ToggleStroke.Thickness = 1
+        ToggleStroke.Parent = Toggle
+        Func:Connect(Toggle.Activated, function()
+            Func:SetMenuVisible(not Config["Menu"])
+        end)
+        Func.UI.MenuToggle = Toggle
+    end
     local PanelCorner = Instance.new("UICorner")
     PanelCorner.CornerRadius = UDim.new(0, 9)
     PanelCorner.Parent = Panel
@@ -595,7 +647,7 @@ function Func:BuildUI()
     AccentCorner.Parent = AccentLine
     local Header = Instance.new("Frame")
     Header.Name = "Header"
-    Header.Size = UDim2.fromOffset(292, 62)
+    Header.Size = UDim2.fromOffset(PanelWidth, 62)
     Header.BackgroundTransparency = 1
     Header.ZIndex = 101
     Header.Parent = Panel
@@ -682,11 +734,18 @@ function Func:BuildUI()
     HeaderLine.BorderSizePixel = 0
     HeaderLine.ZIndex = 102
     HeaderLine.Parent = Panel
-    local Content = Instance.new("Frame")
+    local Content = Instance.new("ScrollingFrame")
     Content.Name = "Content"
     Content.Position = UDim2.fromOffset(0, 63)
-    Content.Size = UDim2.fromOffset(292, PanelHeight - 63)
+    Content.Size = UDim2.fromOffset(PanelWidth, PanelHeight - 63)
+    Content.CanvasSize = UDim2.fromOffset(PanelWidth, PanelHeight - 63)
+    Content.ScrollingDirection = Enum.ScrollingDirection.Y
+    Content.ScrollBarThickness = 3
+    Content.ScrollBarImageColor3 = Palette.Stroke
+    Content.ScrollBarImageTransparency = 0.2
+    Content.ElasticBehavior = Enum.ElasticBehavior.Never
     Content.BackgroundTransparency = 1
+    Content.BorderSizePixel = 0
     Content.ZIndex = 101
     Content.Parent = Panel
     Func.UI.Content = Content
@@ -844,7 +903,7 @@ function Func:BuildUI()
     local FOVValue = Func:CreateLabel(
         FOVButton,
         "FOVValue",
-        "220 px",
+        "40 px",
         UDim2.fromScale(0, 0),
         UDim2.fromScale(1, 1),
         Enum.Font.Code,
@@ -982,7 +1041,7 @@ function Func:BuildUI()
     local KeyHint = Func:CreateLabel(
         TelemetryCard,
         "KeyHint",
-        "MENU  RIGHT SHIFT",
+        UserInputService.TouchEnabled and "MENU  TOP RIGHT BUTTON" or "MENU  RIGHT SHIFT",
         UDim2.fromOffset(12, 44),
         UDim2.fromOffset(240, 12),
         Enum.Font.Code,
@@ -1000,11 +1059,60 @@ function Func:BuildUI()
         Func.UI.PanelTween = TweenService:Create(
             Panel,
             TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            { Size = Func.UI.Minimized and UDim2.fromOffset(292, 62) or UDim2.fromOffset(292, PanelHeight) }
+            { Size = Func.UI.Minimized and UDim2.fromOffset(PanelWidth, 62) or UDim2.fromOffset(PanelWidth, Func.UI.PanelHeight or PanelHeight) }
         )
         Func.UI.PanelTween:Play()
     end)
     Func.UI.Minimized = false
+    Func:LayoutUI(true)
+end
+
+-- Opening/closing the menu only hides the panel, so the ESP boxes keep rendering either way.
+function Func:SetMenuVisible(Visible)
+    Config["Menu"] = Visible == true
+    if Func.UI.Panel then
+        Func.UI.Panel.Visible = Config["Menu"]
+    end
+end
+
+-- Fits the panel to the current viewport. Phones get a smaller overall scale plus a scrolling
+-- body, so the whole menu stays usable without changing the authored layout.
+function Func:LayoutUI(Force)
+    local Camera = workspace.CurrentCamera
+    local Viewport = Camera and Camera.ViewportSize or Vector2.new(1280, 720)
+    if not Force and Func.LastViewport == Viewport then
+        return
+    end
+    Func.LastViewport = Viewport
+    local Fit = math.min(
+        (Viewport.Y - ViewportMargin) / PanelHeight,
+        (Viewport.X - ViewportMargin) / PanelWidth
+    )
+    local Scale = math.clamp(Fit, MinUIScale, 1)
+    local Available = math.max(120, (Viewport.Y - ViewportMargin) / Scale)
+    local Height = math.min(PanelHeight, Available)
+    Func.UI.PanelHeight = Height
+    if Func.UI.PanelScale then
+        Func.UI.PanelScale.Scale = Scale
+    end
+    local Panel = Func.UI.Panel
+    local Content = Func.UI.Content
+    if Panel and not Func.UI.Minimized then
+        Panel.Size = UDim2.fromOffset(PanelWidth, Height)
+    end
+    if Content then
+        Content.Size = UDim2.fromOffset(PanelWidth, math.max(120, Height - 63))
+    end
+    if Panel then
+        local ShownHeight = Func.UI.Minimized and 62 or Height
+        local MaxX = math.max(8, Viewport.X - PanelWidth * Scale - 8)
+        local MaxY = math.max(8, Viewport.Y - ShownHeight * Scale - 8)
+        local X = math.clamp(Panel.Position.X.Offset, 8, MaxX)
+        local Y = math.clamp(Panel.Position.Y.Offset, 8, MaxY)
+        if X ~= Panel.Position.X.Offset or Y ~= Panel.Position.Y.Offset then
+            Panel.Position = UDim2.fromOffset(X, Y)
+        end
+    end
 end
 
 function Func:CreateEntry(Player)
@@ -1303,11 +1411,34 @@ function Func:UpdateESP()
     end
 end
 
+-- True only while the player is actually shooting on a touch device. The game's mobile
+-- controller is authoritative (its FIRE button state), so dragging the screen to look around
+-- never engages the lock. The tracked-touch list is only a fallback for when that module is
+-- missing or its controls are disabled.
+function Func:IsTouchFiring()
+    if MobileInputController then
+        local Ok, Held = pcall(function()
+            return MobileInputController:IsFireHeld()
+        end)
+        if Ok and typeof(Held) == "boolean" then
+            if Held then
+                return true
+            end
+            if MobileInputController._enabled == true then
+                return false
+            end
+        end
+    end
+    return UserInputService.TouchEnabled and next(Func.Touches) ~= nil
+end
+
 function Func:UpdateAimbot(DeltaTime)
     local Camera = workspace.CurrentCamera
     if not Camera or not Func.UI.FOVCircle then
         return
     end
+    -- Cheap no-op unless the viewport actually changed (rotation, window resize, device swap).
+    Func:LayoutUI()
     local Viewport = Camera.ViewportSize
     local Center = Vector2.new(Viewport.X * 0.5, Viewport.Y * 0.5)
     local Radius = Config["FOV Radius"]
@@ -1340,7 +1471,7 @@ function Func:UpdateAimbot(DeltaTime)
     local MousePosition = UserInputService:GetMouseLocation()
     local PanelPosition = Func.UI.Panel.AbsolutePosition
     local PanelSize = Func.UI.Panel.AbsoluteSize
-    local MouseOverPanel = Func.UI.Gui.Enabled
+    local MouseOverPanel = Func.UI.Panel.Visible
         and MousePosition.X >= PanelPosition.X
         and MousePosition.X <= PanelPosition.X + PanelSize.X
         and MousePosition.Y >= PanelPosition.Y
@@ -1350,7 +1481,7 @@ function Func:UpdateAimbot(DeltaTime)
     -- being taken.
     local FireHeld = Func.MouseFiring
         or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-    local TouchHeld = UserInputService.TouchEnabled and next(Func.Touches) ~= nil
+    local TouchHeld = Func:IsTouchFiring()
     local Focused = UserInputService:GetFocusedTextBox()
     if not ((FireHeld and not MouseOverPanel) or TouchHeld) or Focused then
         Func.AimLook = nil
@@ -1503,9 +1634,15 @@ Func:Connect(UserInputService.InputChanged, function(Input)
         return
     end
     local Delta = Input.Position - Func.UI.DragStart
+    local Scale = Func.UI.PanelScale and Func.UI.PanelScale.Scale or 1
+    local Camera = workspace.CurrentCamera
+    local Viewport = Camera and Camera.ViewportSize or Vector2.new(1280, 720)
+    local ShownHeight = Func.UI.Minimized and 62 or (Func.UI.PanelHeight or PanelHeight)
+    local MaxX = math.max(8, Viewport.X - PanelWidth * Scale - 8)
+    local MaxY = math.max(8, Viewport.Y - ShownHeight * Scale - 8)
     Func.UI.Panel.Position = UDim2.fromOffset(
-        Func.UI.PanelStart.X.Offset + Delta.X,
-        Func.UI.PanelStart.Y.Offset + Delta.Y
+        math.clamp(Func.UI.PanelStart.X.Offset + Delta.X / Scale, 8, MaxX),
+        math.clamp(Func.UI.PanelStart.Y.Offset + Delta.Y / Scale, 8, MaxY)
     )
 end)
 
@@ -1521,7 +1658,7 @@ end)
 Func:Connect(UserInputService.InputBegan, function(Input)
     local PanelPosition = Func.UI.Panel.AbsolutePosition
     local PanelSize = Func.UI.Panel.AbsoluteSize
-    local OverPanel = Func.UI.Gui.Enabled
+    local OverPanel = Func.UI.Panel.Visible
         and Input.Position.X >= PanelPosition.X
         and Input.Position.X <= PanelPosition.X + PanelSize.X
         and Input.Position.Y >= PanelPosition.Y
@@ -1536,24 +1673,32 @@ Func:Connect(UserInputService.InputBegan, function(Input)
     if OverPanel then
         return
     end
+    -- Fallback only: a touch counts as firing when it lands on a fire-style button. A plain
+    -- drag anywhere on the screen is camera look, so it must not engage the lock.
     local FireHit = false
     for _, Object in ipairs(UserInputService:GetGuiObjectsAtPosition(Input.Position.X, Input.Position.Y)) do
-        if Object:IsA("GuiButton") then
-            local LowerName = string.lower(Object.Name)
-            if string.find(LowerName, "fire", 1, true)
-                or string.find(LowerName, "shoot", 1, true)
-                or string.find(LowerName, "attack", 1, true)
-                or string.find(LowerName, "trigger", 1, true) then
-                FireHit = true
+        local Node = Object
+        for _ = 1, 3 do
+            if not Node or not Node:IsA("GuiObject") then
                 break
             end
+            if Node:IsA("GuiButton") then
+                local LowerName = string.lower(Node.Name)
+                if string.find(LowerName, "fire", 1, true)
+                    or string.find(LowerName, "shoot", 1, true)
+                    or string.find(LowerName, "attack", 1, true)
+                    or string.find(LowerName, "trigger", 1, true) then
+                    FireHit = true
+                    break
+                end
+            end
+            Node = Node.Parent
+        end
+        if FireHit then
+            break
         end
     end
-    local Viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize
-    local LowerRight = Viewport
-        and Input.Position.X >= Viewport.X * 0.72
-        and Input.Position.Y >= Viewport.Y * 0.55
-    if FireHit or LowerRight then
+    if FireHit then
         Func.Touches[Input] = true
     end
 end)
@@ -1569,7 +1714,7 @@ Func:Connect(UserInputService.InputBegan, function(Input, GameProcessed)
         return
     end
     Config["Menu"] = not Config["Menu"]
-    Func.UI.Gui.Enabled = Config["Menu"]
+    Func:SetMenuVisible(Config["Menu"])
 end)
 
 Func:Connect(Players.PlayerRemoving, function(Player)
@@ -1620,3 +1765,7 @@ task.spawn(function()
         end)
     end
 end)
+
+
+
+
