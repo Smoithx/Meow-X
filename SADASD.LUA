@@ -13,6 +13,7 @@ local RunService = cloneref(game:GetService("RunService"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local UserInputService = cloneref(game:GetService("UserInputService"))
 local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local GuiService = cloneref(game:GetService("GuiService"))
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -24,10 +25,6 @@ local GunOk, GunResult = pcall(require, ReplicatedStorage.Modules.Client.Control
 local GunController = GunOk and GunResult or nil
 local HostilityOk, HostilityResult = pcall(require, ReplicatedStorage.Modules.Shared.Combat.Hostility)
 local Hostility = HostilityOk and HostilityResult or nil
--- The game's own touch controller knows exactly when the on-screen FIRE button is held, which
--- is the only reliable "we are shooting" signal on a phone.
-local MobileOk, MobileResult = pcall(require, ReplicatedStorage.Modules.Client.Controllers.MobileInputController)
-local MobileInputController = MobileOk and MobileResult or nil
 
 -- CONFIG
 Config = Config or {
@@ -39,7 +36,7 @@ Config = Config or {
     ["Max Distance"] = 1000,
     ["Aimbot"] = false,
     ["Aim Part"] = "Head",
-    ["FOV Radius"] = 40,
+    ["FOV Radius"] = 220,
     ["Aim Smooth"] = 40,
     ["Aim Assist Angle"] = 55,
     ["Aim Muzzle Comp"] = true,
@@ -47,18 +44,16 @@ Config = Config or {
     ["Menu Key"] = Enum.KeyCode.RightShift,
 }
 
--- 40 px is the default because the UI targets phones, where a 220 px circle covers most of
--- the screen. Existing configs are migrated once so the smaller default actually applies.
-if Config["Config Version"] ~= 3 then
-    Config["Config Version"] = 3
-    Config["FOV Radius"] = 40
+if Config["Config Version"] ~= 2 then
+    Config["Config Version"] = 2
+    Config["FOV Radius"] = 220
     Config["Aim Smooth"] = 40
     Config["Aim Assist Angle"] = 55
 end
 
 local Func = {}
 local Ranges = { 250, 500, 1000, 2500 }
-local FOVOptions = { 20, 30, 40, 60, 90, 120, 160, 220 }
+local FOVOptions = { 220, 160, 120, 90, 60, 40, 30, 20 }
 local SmoothOptions = { 0, 20, 40, 55, 60, 70, 80, 90, 95 }
 local PartNames = {
     Head = true,
@@ -78,12 +73,9 @@ local PartNames = {
     RightFoot = true,
 }
 local RigPrefix = "MercHitboxes_"
-local PanelWidth = 292
-local PanelHeight = 592
--- Smallest the panel is allowed to shrink to on a phone. Below this the labels stop being
--- legible, so the panel keeps this scale and the content scrolls instead.
-local MinUIScale = 0.75
-local ViewportMargin = 24
+local PanelWidth = 300
+local HeaderHeight = 60
+local DesignHeight = 700
 local Palette = {
     Background = Color3.fromRGB(8, 13, 15),
     Surface = Color3.fromRGB(13, 21, 24),
@@ -167,15 +159,15 @@ function Func:CreateLabel(Parent, Name, Text, Position, Size, Font, TextSize, Co
     return Label
 end
 
-function Func:CreateCard(Parent, Name, Position, Size, ZIndex)
+function Func:CreateCard(Parent, Name, Height, Order)
     local Card = Instance.new("Frame")
     Card.Name = Name
-    Card.Position = Position
-    Card.Size = Size
+    Card.Size = UDim2.new(1, 0, 0, Height)
+    Card.LayoutOrder = Order or 1
     Card.BackgroundColor3 = Palette.Surface
     Card.BackgroundTransparency = 0.04
     Card.BorderSizePixel = 0
-    Card.ZIndex = ZIndex
+    Card.ZIndex = 103
     Card.Parent = Parent
     local Corner = Instance.new("UICorner")
     Corner.CornerRadius = UDim.new(0, 6)
@@ -185,6 +177,12 @@ function Func:CreateCard(Parent, Name, Position, Size, ZIndex)
     Stroke.Transparency = 0.54
     Stroke.Thickness = 1
     Stroke.Parent = Card
+    local Padding = Instance.new("UIPadding")
+    Padding.PaddingTop = UDim.new(0, 6)
+    Padding.PaddingBottom = UDim.new(0, 6)
+    Padding.PaddingLeft = UDim.new(0, 6)
+    Padding.PaddingRight = UDim.new(0, 6)
+    Padding.Parent = Card
     return Card
 end
 
@@ -338,7 +336,7 @@ function Func:RefreshSwitch(Key)
         return
     end
     local Enabled = Config[Key] == true
-    local Goal = UDim2.fromOffset(Enabled and 18 or 2, 2)
+    local Goal = UDim2.fromOffset(Enabled and 22 or 2, 2)
     Switch.Track.BackgroundColor3 = Enabled and Color3.fromRGB(55, 80, 35) or Palette.SurfaceLight
     Switch.Knob.BackgroundColor3 = Enabled and Palette.Accent or Palette.Muted
     Switch.Label.TextColor3 = Enabled and Palette.Text or Palette.Muted
@@ -360,11 +358,11 @@ function Func:RefreshRange()
 end
 
 function Func:RefreshFOV()
+    local Radius = Func:GetAimRadius()
     if Func.UI.FOVValue then
-        Func.UI.FOVValue.Text = string.format("%d px", Config["FOV Radius"])
+        Func.UI.FOVValue.Text = string.format("%d px", math.floor(Radius + 0.5))
     end
     if Func.UI.FOVCircle then
-        local Radius = Config["FOV Radius"]
         Func.UI.FOVCircle.Size = UDim2.fromOffset(Radius * 2, Radius * 2)
     end
 end
@@ -385,18 +383,18 @@ function Func:RefreshAimPart()
     end
 end
 
-function Func:CreatePartButton(Parent, PartName, Position)
+function Func:CreatePartButton(Parent, PartName, Order)
     local Button = Instance.new("TextButton")
     Button.Name = PartName
-    Button.Position = Position
-    Button.Size = UDim2.fromOffset(76, 28)
+    Button.LayoutOrder = Order or 1
+    Button.Size = UDim2.new(1 / 3, -4, 1, 0)
     Button.BackgroundColor3 = Palette.SurfaceLight
     Button.BackgroundTransparency = 0.02
     Button.AutoButtonColor = false
     Button.Text = string.upper(PartName)
     Button.TextColor3 = Palette.Muted
     Button.Font = Enum.Font.Code
-    Button.TextSize = 10
+    Button.TextSize = 11
     Button.ZIndex = Parent.ZIndex + 2
     Button.Parent = Parent
     local Corner = Instance.new("UICorner")
@@ -427,17 +425,19 @@ function Func:RefreshStatus()
     Func.UI.Status.TextColor3 = Active and Palette.Accent or Palette.Muted
     Func.UI.StatusDot.BackgroundColor3 = Active and Palette.Accent or Palette.Muted
     Func.UI.CountValue.Text = string.format("%02d", Func.VisibleCount)
-    if workspace.CurrentCamera then
-        local Viewport = workspace.CurrentCamera.ViewportSize
-        Func.UI.ViewportValue.Text = string.format("%d x %d", Viewport.X, Viewport.Y)
+    local Viewport = Func:GetViewportSize()
+    Func.UI.ViewportValue.Text = string.format("%d x %d", Viewport.X, Viewport.Y)
+    if Func.UI.LastViewport ~= Viewport then
+        Func.UI.LastViewport = Viewport
+        Func:Layout()
     end
 end
 
 function Func:CreateSwitch(Parent, Key, Text, Order)
     local Row = Instance.new("TextButton")
     Row.Name = Key
-    Row.Position = UDim2.fromOffset(4, 4 + (Order - 1) * 38)
-    Row.Size = UDim2.fromOffset(256, 34)
+    Row.LayoutOrder = Order or 1
+    Row.Size = UDim2.new(1, 0, 0, 40)
     Row.BackgroundColor3 = Palette.SurfaceLight
     Row.BackgroundTransparency = 1
     Row.AutoButtonColor = false
@@ -449,16 +449,16 @@ function Func:CreateSwitch(Parent, Key, Text, Order)
         "Label",
         Text,
         UDim2.fromOffset(10, 0),
-        UDim2.fromOffset(178, 34),
+        UDim2.new(1, -70, 1, 0),
         Enum.Font.GothamBold,
-        11,
+        12,
         Palette.Text
     )
     local Track = Instance.new("Frame")
     Track.Name = "Track"
     Track.AnchorPoint = Vector2.new(1, 0.5)
-    Track.Position = UDim2.new(1, -10, 0.5, 0)
-    Track.Size = UDim2.fromOffset(32, 16)
+    Track.Position = UDim2.new(1, -8, 0.5, 0)
+    Track.Size = UDim2.fromOffset(40, 20)
     Track.BackgroundColor3 = Palette.SurfaceLight
     Track.BorderSizePixel = 0
     Track.ZIndex = Row.ZIndex + 1
@@ -469,7 +469,7 @@ function Func:CreateSwitch(Parent, Key, Text, Order)
     local Knob = Instance.new("Frame")
     Knob.Name = "Knob"
     Knob.Position = UDim2.fromOffset(2, 2)
-    Knob.Size = UDim2.fromOffset(12, 12)
+    Knob.Size = UDim2.fromOffset(16, 16)
     Knob.BackgroundColor3 = Palette.Muted
     Knob.BorderSizePixel = 0
     Knob.ZIndex = Track.ZIndex + 1
@@ -497,25 +497,196 @@ function Func:CreateSwitch(Parent, Key, Text, Order)
     return Row
 end
 
+function Func:GetViewportSize()
+    local Camera = workspace.CurrentCamera
+    if Camera then
+        return Camera.ViewportSize
+    end
+    return Vector2.new(1280, 720)
+end
+
+function Func:GetSafeInset()
+    local Ok, Inset = pcall(function()
+        return GuiService:GetGuiInset()
+    end)
+    if Ok and typeof(Inset) == "Vector2" then
+        return Inset
+    end
+    return Vector2.new(0, 0)
+end
+
+-- The FOV ring is drawn in viewport pixels, so a radius that is fine on a monitor would
+-- spill off a phone screen. The ring and the aim test both use this clamped value, so the
+-- circle always shows exactly where the assist can reach.
+function Func:GetAimRadius()
+    local Viewport = Func:GetViewportSize()
+    local Limit = math.min(Viewport.X, Viewport.Y) * 0.42
+    local Configured = tonumber(Config["FOV Radius"]) or 220
+    return math.max(24, math.min(Configured, Limit))
+end
+
+function Func:SetMenuVisible(Visible)
+    Config["Menu"] = Visible == true
+    if Func.UI.Panel then
+        Func.UI.Panel.Visible = Config["Menu"]
+    end
+end
+
+-- Keeps the panel on screen after a drag or a rotation.
+function Func:ClampPanel()
+    local Panel = Func.UI.Panel
+    if not Panel then
+        return
+    end
+    local Viewport = Func:GetViewportSize()
+    local Inset = Func:GetSafeInset()
+    local Scale = Func.UI.Scale and Func.UI.Scale.Scale or 1
+    local Margin = 8
+    local MinX = Margin + math.max(Inset.X, 0)
+    local MinY = Margin + math.max(Inset.Y, 0)
+    local MaxX = math.max(MinX, Viewport.X - Margin - Panel.Size.X.Offset * Scale)
+    local MaxY = math.max(MinY, Viewport.Y - Margin - Panel.Size.Y.Offset * Scale)
+    local X = math.clamp(Panel.Position.X.Offset, MinX, MaxX)
+    local Y = math.clamp(Panel.Position.Y.Offset, MinY, MaxY)
+    Panel.Position = UDim2.fromOffset(X, Y)
+end
+
+-- The panel is authored at a fixed size, then scaled and clipped to the safe area of the
+-- current device. A phone in landscape only reports about 390 px of height, so the body
+-- scrolls instead of running off the bottom of the screen.
+function Func:Layout()
+    local Viewport = Func:GetViewportSize()
+    local Inset = Func:GetSafeInset()
+    local Margin = 8
+    local Top = math.max(Inset.Y, 0) + Margin
+    local Left = math.max(Inset.X, 0) + Margin
+    local MaxWidth = math.max(200, Viewport.X - Left - Margin)
+    local MaxHeight = math.max(180, Viewport.Y - Top - Margin - 10)
+    local Scale = math.clamp(math.min(1, MaxWidth / PanelWidth), 0.55, 1)
+    if Func.UI.Scale then
+        Func.UI.Scale.Scale = Scale
+    end
+    local Panel = Func.UI.Panel
+    local Height = math.min(DesignHeight, MaxHeight / Scale)
+    Func.UI.PanelHeight = Height
+    if not Func.UI.Minimized then
+        Panel.Size = UDim2.fromOffset(PanelWidth, Height)
+    end
+    if Func.UI.Content then
+        Func.UI.Content.Size = UDim2.fromOffset(PanelWidth, math.max(80, Height - HeaderHeight))
+    end
+    Func:ClampPanel()
+    local Toggle = Func.UI.Toggle
+    if Toggle then
+        local ToggleSize = Toggle.Size
+        local X = math.clamp(Toggle.Position.X.Offset, 0, math.max(0, Viewport.X - ToggleSize.X.Offset))
+        local Y = math.clamp(Toggle.Position.Y.Offset, 0, math.max(0, Viewport.Y - ToggleSize.Y.Offset))
+        Toggle.Position = UDim2.fromOffset(X, Y)
+    end
+    Func:RefreshFOV()
+end
+
+-- A keyboard is not available on a phone, so a touch device gets a floating button that
+-- shows and hides the panel. It can be dragged out of the way of the game's own buttons.
+function Func:BuildToggle()
+    local ToggleGui = Instance.new("ScreenGui")
+    ToggleGui.Name = "PrismPlayerIntelToggle"
+    ToggleGui.ResetOnSpawn = false
+    ToggleGui.IgnoreGuiInset = true
+    ToggleGui.DisplayOrder = 1001
+    ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ToggleGui.Parent = PlayerGui
+    Func.UI.ToggleGui = ToggleGui
+    local Viewport = Func:GetViewportSize()
+    local Inset = Func:GetSafeInset()
+    local Toggle = Instance.new("TextButton")
+    Toggle.Name = "MenuToggle"
+    Toggle.Size = UDim2.fromOffset(48, 48)
+    Toggle.Position = UDim2.fromOffset(math.max(8, Viewport.X - 58), math.max(Inset.Y, 0) + 10)
+    Toggle.BackgroundColor3 = Palette.Background
+    Toggle.BackgroundTransparency = 0.12
+    Toggle.AutoButtonColor = false
+    Toggle.Text = "≡"
+    Toggle.TextColor3 = Palette.Accent
+    Toggle.Font = Enum.Font.GothamBlack
+    Toggle.TextSize = 24
+    Toggle.Visible = UserInputService.TouchEnabled
+    Toggle.ZIndex = 5
+    Toggle.Parent = ToggleGui
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 10)
+    Corner.Parent = Toggle
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Palette.Accent
+    Stroke.Transparency = 0.45
+    Stroke.Thickness = 1
+    Stroke.Parent = Toggle
+    Func.UI.Toggle = Toggle
+    local Drag = {
+        Active = false,
+        Moved = false,
+        Start = Vector2.zero,
+        Origin = Vector2.zero,
+    }
+    Func:Connect(Toggle.InputBegan, function(Input)
+        if Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        Drag.Active = true
+        Drag.Moved = false
+        Drag.Start = Vector2.new(Input.Position.X, Input.Position.Y)
+        Drag.Origin = Vector2.new(Toggle.Position.X.Offset, Toggle.Position.Y.Offset)
+    end)
+    Func:Connect(Toggle.InputChanged, function(Input)
+        if not Drag.Active then
+            return
+        end
+        if Input.UserInputType ~= Enum.UserInputType.MouseMovement and Input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        local Delta = Vector2.new(Input.Position.X, Input.Position.Y) - Drag.Start
+        if Delta.Magnitude > 6 then
+            Drag.Moved = true
+        end
+        local Size = Func:GetViewportSize()
+        local X = math.clamp(Drag.Origin.X + Delta.X, 0, math.max(0, Size.X - Toggle.Size.X.Offset))
+        local Y = math.clamp(Drag.Origin.Y + Delta.Y, 0, math.max(0, Size.Y - Toggle.Size.Y.Offset))
+        Toggle.Position = UDim2.fromOffset(X, Y)
+    end)
+    Func:Connect(Toggle.InputEnded, function(Input)
+        if Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        Drag.Active = false
+    end)
+    Func:Connect(Toggle.Activated, function()
+        if Drag.Moved then
+            return
+        end
+        Func:SetMenuVisible(not Config["Menu"])
+    end)
+end
+
 function Func:BuildUI()
     local Existing = PlayerGui:FindFirstChild("PrismPlayerIntel")
     if Existing then
         Existing:Destroy()
     end
+    local ExistingToggle = PlayerGui:FindFirstChild("PrismPlayerIntelToggle")
+    if ExistingToggle then
+        ExistingToggle:Destroy()
+    end
     local Gui = Instance.new("ScreenGui")
     Gui.Name = "PrismPlayerIntel"
     Gui.ResetOnSpawn = false
-    -- The overlay is positioned in viewport pixels (WorldToViewportPoint), so the GUI must
-    -- start at the viewport origin. Ignoring the inset would push everything 58 px up on a
-    -- windowed client and knock the ESP boxes and the FOV circle off the crosshair.
-    Gui.IgnoreGuiInset = false
+    Gui.IgnoreGuiInset = true
     Gui.DisplayOrder = 999
     Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    -- The ScreenGui stays enabled so the ESP boxes and the FOV circle keep drawing while the
-    -- menu itself is closed; only the panel is hidden.
     Gui.Enabled = true
     Gui.Parent = PlayerGui
     Func.UI.Gui = Gui
+    Func.UI.Minimized = false
+    Func.UI.LastViewport = nil
     local Overlay = Instance.new("Frame")
     Overlay.Name = "Overlay"
     Overlay.Size = UDim2.fromScale(1, 1)
@@ -523,11 +694,12 @@ function Func:BuildUI()
     Overlay.ZIndex = 10
     Overlay.Parent = Gui
     Func.UI.Overlay = Overlay
+    local InitialRadius = Func:GetAimRadius()
     local FOVCircle = Instance.new("Frame")
     FOVCircle.Name = "FOVCircle"
     FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
     FOVCircle.Position = UDim2.fromScale(0.5, 0.5)
-    FOVCircle.Size = UDim2.fromOffset(Config["FOV Radius"] * 2, Config["FOV Radius"] * 2)
+    FOVCircle.Size = UDim2.fromOffset(InitialRadius * 2, InitialRadius * 2)
     FOVCircle.BackgroundTransparency = 1
     FOVCircle.BorderSizePixel = 0
     FOVCircle.Visible = false
@@ -559,7 +731,7 @@ function Func:BuildUI()
     local AimHint = Instance.new("TextLabel")
     AimHint.Name = "AimHint"
     AimHint.AnchorPoint = Vector2.new(0.5, 0)
-    AimHint.Position = UDim2.new(0.5, 0, 0.5, Config["FOV Radius"] + 10)
+    AimHint.Position = UDim2.new(0.5, 0, 0.5, InitialRadius + 10)
     AimHint.Size = UDim2.fromOffset(240, 16)
     AimHint.BackgroundTransparency = 1
     AimHint.BorderSizePixel = 0
@@ -574,51 +746,21 @@ function Func:BuildUI()
     Func.UI.AimHint = AimHint
     local Panel = Instance.new("Frame")
     Panel.Name = "Panel"
-    Panel.Position = UDim2.fromOffset(24, 16)
-    Panel.Size = UDim2.fromOffset(PanelWidth, PanelHeight)
+    Panel.Position = UDim2.fromOffset(16, 16)
+    Panel.Size = UDim2.fromOffset(PanelWidth, DesignHeight)
     Panel.BackgroundColor3 = Palette.Background
     Panel.BackgroundTransparency = 0.03
     Panel.BorderSizePixel = 0
-    Panel.ClipsDescendants = false
-    Panel.ZIndex = 100
+    Panel.ClipsDescendants = true
     Panel.Visible = Config["Menu"] == true
+    Panel.ZIndex = 100
     Panel.Parent = Gui
     Func.UI.Panel = Panel
-    -- The panel is authored at a fixed 292x592 and scaled as a whole, so the layout never has
-    -- to be rewritten per device. The ESP boxes and the FOV circle stay outside this scale
-    -- because they are positioned in real viewport pixels.
     local PanelScale = Instance.new("UIScale")
+    PanelScale.Name = "Scale"
     PanelScale.Scale = 1
     PanelScale.Parent = Panel
-    Func.UI.PanelScale = PanelScale
-    -- A phone has no RightShift, so touch devices get a small floating button for the menu.
-    if UserInputService.TouchEnabled then
-        local Toggle = Instance.new("TextButton")
-        Toggle.Name = "MenuToggle"
-        Toggle.AnchorPoint = Vector2.new(1, 0)
-        Toggle.Position = UDim2.new(1, -10, 0, 10)
-        Toggle.Size = UDim2.fromOffset(46, 30)
-        Toggle.BackgroundColor3 = Palette.Surface
-        Toggle.BackgroundTransparency = 0.2
-        Toggle.AutoButtonColor = false
-        Toggle.Text = "MENU"
-        Toggle.TextColor3 = Palette.Accent
-        Toggle.Font = Enum.Font.GothamBold
-        Toggle.TextSize = 9
-        Toggle.ZIndex = 300
-        Toggle.Parent = Gui
-        local ToggleCorner = Instance.new("UICorner")
-        ToggleCorner.CornerRadius = UDim.new(0, 9)
-        ToggleCorner.Parent = Toggle
-        local ToggleStroke = Instance.new("UIStroke")
-        ToggleStroke.Color = Palette.Stroke
-        ToggleStroke.Thickness = 1
-        ToggleStroke.Parent = Toggle
-        Func:Connect(Toggle.Activated, function()
-            Func:SetMenuVisible(not Config["Menu"])
-        end)
-        Func.UI.MenuToggle = Toggle
-    end
+    Func.UI.Scale = PanelScale
     local PanelCorner = Instance.new("UICorner")
     PanelCorner.CornerRadius = UDim.new(0, 9)
     PanelCorner.Parent = Panel
@@ -636,7 +778,6 @@ function Func:BuildUI()
     PanelGradient.Parent = Panel
     local AccentLine = Instance.new("Frame")
     AccentLine.Name = "AccentLine"
-    AccentLine.Position = UDim2.fromOffset(0, 0)
     AccentLine.Size = UDim2.new(1, 0, 0, 2)
     AccentLine.BackgroundColor3 = Palette.Accent
     AccentLine.BorderSizePixel = 0
@@ -647,13 +788,13 @@ function Func:BuildUI()
     AccentCorner.Parent = AccentLine
     local Header = Instance.new("Frame")
     Header.Name = "Header"
-    Header.Size = UDim2.fromOffset(PanelWidth, 62)
+    Header.Size = UDim2.fromOffset(PanelWidth, HeaderHeight)
     Header.BackgroundTransparency = 1
     Header.ZIndex = 101
     Header.Parent = Panel
     local DragArea = Instance.new("TextButton")
     DragArea.Name = "DragArea"
-    DragArea.Size = UDim2.fromOffset(198, 62)
+    DragArea.Size = UDim2.fromScale(1, 1)
     DragArea.BackgroundTransparency = 1
     DragArea.AutoButtonColor = false
     DragArea.Text = ""
@@ -664,8 +805,8 @@ function Func:BuildUI()
         Header,
         "Logo",
         "PRISM",
-        UDim2.fromOffset(18, 10),
-        UDim2.fromOffset(118, 24),
+        UDim2.fromOffset(18, 8),
+        UDim2.fromOffset(140, 24),
         Enum.Font.GothamBlack,
         18,
         Palette.Text
@@ -675,8 +816,8 @@ function Func:BuildUI()
         Header,
         "Subtitle",
         "PLAYER INTELLIGENCE",
-        UDim2.fromOffset(19, 34),
-        UDim2.fromOffset(155, 14),
+        UDim2.fromOffset(19, 32),
+        UDim2.fromOffset(160, 14),
         Enum.Font.Code,
         9,
         Palette.Cyan
@@ -685,7 +826,7 @@ function Func:BuildUI()
     local StatusDot = Instance.new("Frame")
     StatusDot.Name = "StatusDot"
     StatusDot.AnchorPoint = Vector2.new(1, 0.5)
-    StatusDot.Position = UDim2.fromOffset(213, 20)
+    StatusDot.Position = UDim2.new(1, -114, 0, 30)
     StatusDot.Size = UDim2.fromOffset(6, 6)
     StatusDot.BackgroundColor3 = Palette.Accent
     StatusDot.BorderSizePixel = 0
@@ -698,8 +839,8 @@ function Func:BuildUI()
         Header,
         "Status",
         "LIVE",
-        UDim2.fromOffset(220, 12),
-        UDim2.fromOffset(46, 16),
+        UDim2.new(1, -106, 0, 22),
+        UDim2.fromOffset(52, 16),
         Enum.Font.Code,
         10,
         Palette.Accent
@@ -710,25 +851,25 @@ function Func:BuildUI()
     local Minimize = Instance.new("TextButton")
     Minimize.Name = "Minimize"
     Minimize.AnchorPoint = Vector2.new(1, 0)
-    Minimize.Position = UDim2.new(1, -14, 0, 15)
-    Minimize.Size = UDim2.fromOffset(24, 24)
+    Minimize.Position = UDim2.new(1, -10, 0, 10)
+    Minimize.Size = UDim2.fromOffset(40, 40)
     Minimize.BackgroundColor3 = Palette.SurfaceLight
     Minimize.BackgroundTransparency = 0.05
     Minimize.AutoButtonColor = false
     Minimize.Text = "-"
-    Minimize.TextColor3 = Palette.Muted
+    Minimize.TextColor3 = Palette.Text
     Minimize.Font = Enum.Font.Code
-    Minimize.TextSize = 16
-    Minimize.ZIndex = 104
+    Minimize.TextSize = 20
+    Minimize.ZIndex = 106
     Minimize.Parent = Header
     local MinimizeCorner = Instance.new("UICorner")
-    MinimizeCorner.CornerRadius = UDim.new(0, 5)
+    MinimizeCorner.CornerRadius = UDim.new(0, 6)
     MinimizeCorner.Parent = Minimize
     Func.UI.Minimize = Minimize
     local HeaderLine = Instance.new("Frame")
     HeaderLine.Name = "HeaderLine"
-    HeaderLine.Position = UDim2.fromOffset(14, 62)
-    HeaderLine.Size = UDim2.new(1, -28, 0, 1)
+    HeaderLine.Position = UDim2.fromOffset(12, HeaderHeight - 1)
+    HeaderLine.Size = UDim2.new(1, -24, 0, 1)
     HeaderLine.BackgroundColor3 = Palette.Stroke
     HeaderLine.BackgroundTransparency = 0.36
     HeaderLine.BorderSizePixel = 0
@@ -736,64 +877,91 @@ function Func:BuildUI()
     HeaderLine.Parent = Panel
     local Content = Instance.new("ScrollingFrame")
     Content.Name = "Content"
-    Content.Position = UDim2.fromOffset(0, 63)
-    Content.Size = UDim2.fromOffset(PanelWidth, PanelHeight - 63)
-    Content.CanvasSize = UDim2.fromOffset(PanelWidth, PanelHeight - 63)
-    Content.ScrollingDirection = Enum.ScrollingDirection.Y
-    Content.ScrollBarThickness = 3
-    Content.ScrollBarImageColor3 = Palette.Stroke
-    Content.ScrollBarImageTransparency = 0.2
-    Content.ElasticBehavior = Enum.ElasticBehavior.Never
+    Content.Position = UDim2.fromOffset(0, HeaderHeight)
+    Content.Size = UDim2.fromOffset(PanelWidth, DesignHeight - HeaderHeight)
     Content.BackgroundTransparency = 1
     Content.BorderSizePixel = 0
+    Content.ScrollBarThickness = 3
+    Content.ScrollBarImageColor3 = Palette.Stroke
+    Content.ScrollBarImageTransparency = 0.25
+    Content.ScrollingDirection = Enum.ScrollingDirection.Y
+    Content.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
+    Content.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+    Content.CanvasSize = UDim2.fromOffset(0, 0)
+    Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
     Content.ZIndex = 101
     Content.Parent = Panel
     Func.UI.Content = Content
-    local SectionOne = Func:CreateLabel(
-        Content,
-        "SectionOne",
-        "VISUAL LAYERS",
-        UDim2.fromOffset(16, 12),
-        UDim2.fromOffset(180, 16),
-        Enum.Font.Code,
-        9,
-        Palette.Muted
-    )
-    SectionOne.TextXAlignment = Enum.TextXAlignment.Left
-    local SwitchCard = Func:CreateCard(Content, "SwitchCard", UDim2.fromOffset(14, 34), UDim2.fromOffset(264, 160), 103)
+    local ContentPadding = Instance.new("UIPadding")
+    ContentPadding.PaddingTop = UDim.new(0, 10)
+    ContentPadding.PaddingBottom = UDim.new(0, 12)
+    ContentPadding.PaddingLeft = UDim.new(0, 12)
+    ContentPadding.PaddingRight = UDim.new(0, 12)
+    ContentPadding.Parent = Content
+    local ContentList = Instance.new("UIListLayout")
+    ContentList.FillDirection = Enum.FillDirection.Vertical
+    ContentList.SortOrder = Enum.SortOrder.LayoutOrder
+    ContentList.Padding = UDim.new(0, 8)
+    ContentList.Parent = Content
+    local Order = 0
+    local function NextOrder()
+        Order = Order + 1
+        return Order
+    end
+    local function AddSection(Text)
+        local Label = Func:CreateLabel(
+            Content,
+            "Section",
+            Text,
+            UDim2.fromOffset(0, 0),
+            UDim2.new(1, 0, 0, 14),
+            Enum.Font.Code,
+            9,
+            Palette.Muted
+        )
+        Label.LayoutOrder = NextOrder()
+        return Label
+    end
+    local function AddList(Parent, Padding)
+        local List = Instance.new("UIListLayout")
+        List.FillDirection = Enum.FillDirection.Vertical
+        List.SortOrder = Enum.SortOrder.LayoutOrder
+        List.Padding = UDim.new(0, Padding or 4)
+        List.Parent = Parent
+        return List
+    end
+    AddSection("VISUAL LAYERS")
+    local SwitchCard = Func:CreateCard(Content, "SwitchCard", 184, NextOrder())
+    AddList(SwitchCard, 4)
     Func:CreateSwitch(SwitchCard, "ESP", "PLAYER ESP", 1)
     Func:CreateSwitch(SwitchCard, "Boxes", "BOUNDING BOX", 2)
     Func:CreateSwitch(SwitchCard, "Health", "HEALTH READOUT", 3)
     Func:CreateSwitch(SwitchCard, "Distance", "DISTANCE READOUT", 4)
-    local SectionTwo = Func:CreateLabel(
-        Content,
-        "SectionTwo",
-        "SCAN LIMIT",
-        UDim2.fromOffset(16, 204),
-        UDim2.fromOffset(180, 16),
-        Enum.Font.Code,
-        9,
-        Palette.Muted
-    )
-    SectionTwo.TextXAlignment = Enum.TextXAlignment.Left
-    local RangeCard = Func:CreateCard(Content, "RangeCard", UDim2.fromOffset(14, 226), UDim2.fromOffset(264, 58), 103)
+    AddSection("SCAN LIMIT")
+    local RangeCard = Func:CreateCard(Content, "RangeCard", 64, NextOrder())
+    local RangeRow = Instance.new("Frame")
+    RangeRow.Name = "RangeRow"
+    RangeRow.Size = UDim2.new(1, 0, 0, 52)
+    RangeRow.BackgroundTransparency = 1
+    RangeRow.ZIndex = RangeCard.ZIndex + 1
+    RangeRow.Parent = RangeCard
     local RangeLabel = Func:CreateLabel(
-        RangeCard,
+        RangeRow,
         "RangeLabel",
         "DISTANCE CULL",
-        UDim2.fromOffset(12, 8),
-        UDim2.fromOffset(120, 16),
+        UDim2.fromOffset(6, 4),
+        UDim2.new(1, -124, 0, 16),
         Enum.Font.GothamBold,
-        11,
+        12,
         Palette.Text
     )
     RangeLabel.TextXAlignment = Enum.TextXAlignment.Left
     local RangeHint = Func:CreateLabel(
-        RangeCard,
+        RangeRow,
         "RangeHint",
-        "CLICK TO CYCLE",
-        UDim2.fromOffset(12, 31),
-        UDim2.fromOffset(120, 14),
+        "TAP TO CYCLE",
+        UDim2.fromOffset(6, 24),
+        UDim2.new(1, -124, 0, 14),
         Enum.Font.Code,
         8,
         Palette.Muted
@@ -801,15 +969,15 @@ function Func:BuildUI()
     RangeHint.TextXAlignment = Enum.TextXAlignment.Left
     local RangeButton = Instance.new("TextButton")
     RangeButton.Name = "RangeButton"
-    RangeButton.AnchorPoint = Vector2.new(1, 0)
-    RangeButton.Position = UDim2.new(1, -10, 0, 9)
-    RangeButton.Size = UDim2.fromOffset(104, 40)
+    RangeButton.AnchorPoint = Vector2.new(1, 0.5)
+    RangeButton.Position = UDim2.new(1, -4, 0.5, 0)
+    RangeButton.Size = UDim2.fromOffset(110, 42)
     RangeButton.BackgroundColor3 = Palette.SurfaceLight
     RangeButton.BackgroundTransparency = 0.02
     RangeButton.AutoButtonColor = false
     RangeButton.Text = ""
-    RangeButton.ZIndex = 105
-    RangeButton.Parent = RangeCard
+    RangeButton.ZIndex = RangeRow.ZIndex + 1
+    RangeButton.Parent = RangeRow
     local RangeButtonCorner = Instance.new("UICorner")
     RangeButtonCorner.CornerRadius = UDim.new(0, 5)
     RangeButtonCorner.Parent = RangeButton
@@ -845,53 +1013,64 @@ function Func:BuildUI()
         end
         Func:RefreshRange()
     end)
-    local SectionCombat = Func:CreateLabel(
-        Content,
-        "SectionCombat",
-        "COMBAT MODULE",
-        UDim2.fromOffset(16, 280),
-        UDim2.fromOffset(180, 16),
-        Enum.Font.Code,
-        9,
-        Palette.Muted
-    )
-    SectionCombat.TextXAlignment = Enum.TextXAlignment.Left
-    local AimCard = Func:CreateCard(Content, "AimCard", UDim2.fromOffset(14, 302), UDim2.fromOffset(264, 136), 103)
+    AddSection("COMBAT MODULE")
+    local AimCard = Func:CreateCard(Content, "AimCard", 182, NextOrder())
+    AddList(AimCard, 4)
     Func:CreateSwitch(AimCard, "Aimbot", "AIM BOT", 1)
     local LockLabel = Func:CreateLabel(
         AimCard,
         "LockLabel",
         "LOCK PART",
-        UDim2.fromOffset(12, 42),
-        UDim2.fromOffset(90, 14),
+        UDim2.fromOffset(6, 0),
+        UDim2.new(1, 0, 0, 14),
         Enum.Font.Code,
         8,
         Palette.Muted
     )
-    Func:CreatePartButton(AimCard, "Head", UDim2.fromOffset(12, 58))
-    Func:CreatePartButton(AimCard, "Neck", UDim2.fromOffset(94, 58))
-    Func:CreatePartButton(AimCard, "Body", UDim2.fromOffset(176, 58))
+    LockLabel.LayoutOrder = 2
+    local PartRow = Instance.new("Frame")
+    PartRow.Name = "PartRow"
+    PartRow.Size = UDim2.new(1, 0, 0, 36)
+    PartRow.BackgroundTransparency = 1
+    PartRow.LayoutOrder = 3
+    PartRow.ZIndex = AimCard.ZIndex + 1
+    PartRow.Parent = AimCard
+    local PartList = Instance.new("UIListLayout")
+    PartList.FillDirection = Enum.FillDirection.Horizontal
+    PartList.SortOrder = Enum.SortOrder.LayoutOrder
+    PartList.Padding = UDim.new(0, 4)
+    PartList.Parent = PartRow
+    Func:CreatePartButton(PartRow, "Head", 1)
+    Func:CreatePartButton(PartRow, "Neck", 2)
+    Func:CreatePartButton(PartRow, "Body", 3)
+    local FOVRow = Instance.new("Frame")
+    FOVRow.Name = "FOVRow"
+    FOVRow.Size = UDim2.new(1, 0, 0, 34)
+    FOVRow.BackgroundTransparency = 1
+    FOVRow.LayoutOrder = 4
+    FOVRow.ZIndex = AimCard.ZIndex + 1
+    FOVRow.Parent = AimCard
     local FOVLabel = Func:CreateLabel(
-        AimCard,
+        FOVRow,
         "FOVLabel",
         "FOV RADIUS",
-        UDim2.fromOffset(12, 92),
-        UDim2.fromOffset(100, 16),
+        UDim2.fromOffset(6, 0),
+        UDim2.new(1, -124, 1, 0),
         Enum.Font.GothamBold,
-        10,
+        11,
         Palette.Text
     )
     local FOVButton = Instance.new("TextButton")
     FOVButton.Name = "FOVButton"
-    FOVButton.AnchorPoint = Vector2.new(1, 0)
-    FOVButton.Position = UDim2.new(1, -10, 0, 88)
-    FOVButton.Size = UDim2.fromOffset(96, 30)
+    FOVButton.AnchorPoint = Vector2.new(1, 0.5)
+    FOVButton.Position = UDim2.new(1, -4, 0.5, 0)
+    FOVButton.Size = UDim2.fromOffset(110, 32)
     FOVButton.BackgroundColor3 = Palette.SurfaceLight
     FOVButton.BackgroundTransparency = 0.02
     FOVButton.AutoButtonColor = false
     FOVButton.Text = ""
-    FOVButton.ZIndex = AimCard.ZIndex + 2
-    FOVButton.Parent = AimCard
+    FOVButton.ZIndex = FOVRow.ZIndex + 1
+    FOVButton.Parent = FOVRow
     local FOVButtonCorner = Instance.new("UICorner")
     FOVButtonCorner.CornerRadius = UDim.new(0, 5)
     FOVButtonCorner.Parent = FOVButton
@@ -903,25 +1082,32 @@ function Func:BuildUI()
     local FOVValue = Func:CreateLabel(
         FOVButton,
         "FOVValue",
-        "40 px",
+        "220 px",
         UDim2.fromScale(0, 0),
         UDim2.fromScale(1, 1),
         Enum.Font.Code,
-        11,
+        12,
         Palette.Accent,
         Enum.TextXAlignment.Center
     )
     Func.UI.FOVValue = FOVValue
+    local SmoothRow = Instance.new("Frame")
+    SmoothRow.Name = "SmoothRow"
+    SmoothRow.Size = UDim2.new(1, 0, 0, 30)
+    SmoothRow.BackgroundTransparency = 1
+    SmoothRow.LayoutOrder = 5
+    SmoothRow.ZIndex = AimCard.ZIndex + 1
+    SmoothRow.Parent = AimCard
     local SmoothButton = Instance.new("TextButton")
     SmoothButton.Name = "SmoothButton"
-    SmoothButton.Position = UDim2.fromOffset(12, 113)
-    SmoothButton.Size = UDim2.fromOffset(140, 20)
+    SmoothButton.Position = UDim2.fromOffset(4, 1)
+    SmoothButton.Size = UDim2.fromOffset(150, 28)
     SmoothButton.BackgroundColor3 = Palette.SurfaceLight
     SmoothButton.BackgroundTransparency = 0.02
     SmoothButton.AutoButtonColor = false
     SmoothButton.Text = ""
-    SmoothButton.ZIndex = AimCard.ZIndex + 2
-    SmoothButton.Parent = AimCard
+    SmoothButton.ZIndex = SmoothRow.ZIndex + 1
+    SmoothButton.Parent = SmoothRow
     local SmoothButtonCorner = Instance.new("UICorner")
     SmoothButtonCorner.CornerRadius = UDim.new(0, 5)
     SmoothButtonCorner.Parent = SmoothButton
@@ -937,19 +1123,19 @@ function Func:BuildUI()
         UDim2.fromScale(0, 0),
         UDim2.fromScale(1, 1),
         Enum.Font.Code,
-        9,
+        10,
         Palette.Accent,
         Enum.TextXAlignment.Center
     )
     Func.UI.SmoothValue = SmoothValue
     local AimState = Func:CreateLabel(
-        AimCard,
+        SmoothRow,
         "AimState",
         "STANDBY",
-        UDim2.fromOffset(112, 113),
-        UDim2.fromOffset(140, 20),
+        UDim2.new(1, -96, 0, 0),
+        UDim2.fromOffset(90, 30),
         Enum.Font.Code,
-        8,
+        9,
         Palette.Muted,
         Enum.TextXAlignment.Right
     )
@@ -984,24 +1170,14 @@ function Func:BuildUI()
         end
         Func:RefreshSmooth()
     end)
-    local SectionThree = Func:CreateLabel(
-        Content,
-        "SectionThree",
-        "TELEMETRY",
-        UDim2.fromOffset(16, 446),
-        UDim2.fromOffset(180, 16),
-        Enum.Font.Code,
-        9,
-        Palette.Muted
-    )
-    SectionThree.TextXAlignment = Enum.TextXAlignment.Left
-    local TelemetryCard = Func:CreateCard(Content, "TelemetryCard", UDim2.fromOffset(14, 468), UDim2.fromOffset(264, 60), 103)
+    AddSection("TELEMETRY")
+    local TelemetryCard = Func:CreateCard(Content, "TelemetryCard", 68, NextOrder())
     local CountLabel = Func:CreateLabel(
         TelemetryCard,
         "CountLabel",
         "TRACKED",
-        UDim2.fromOffset(12, 5),
-        UDim2.fromOffset(70, 14),
+        UDim2.fromOffset(0, 2),
+        UDim2.fromOffset(80, 12),
         Enum.Font.Code,
         8,
         Palette.Muted
@@ -1010,10 +1186,10 @@ function Func:BuildUI()
         TelemetryCard,
         "CountValue",
         "00",
-        UDim2.fromOffset(12, 18),
-        UDim2.fromOffset(70, 26),
+        UDim2.fromOffset(0, 14),
+        UDim2.fromOffset(80, 28),
         Enum.Font.GothamBlack,
-        17,
+        18,
         Palette.Accent
     )
     Func.UI.CountValue = CountValue
@@ -1021,8 +1197,8 @@ function Func:BuildUI()
         TelemetryCard,
         "ViewportLabel",
         "VIEWPORT",
-        UDim2.fromOffset(116, 5),
-        UDim2.fromOffset(70, 14),
+        UDim2.fromOffset(92, 2),
+        UDim2.fromOffset(100, 12),
         Enum.Font.Code,
         8,
         Palette.Muted
@@ -1031,10 +1207,10 @@ function Func:BuildUI()
         TelemetryCard,
         "ViewportValue",
         "0 x 0",
-        UDim2.fromOffset(116, 18),
-        UDim2.fromOffset(136, 26),
+        UDim2.fromOffset(92, 14),
+        UDim2.new(1, -92, 0, 28),
         Enum.Font.Code,
-        13,
+        12,
         Palette.Cyan
     )
     Func.UI.ViewportValue = ViewportValue
@@ -1042,8 +1218,8 @@ function Func:BuildUI()
         TelemetryCard,
         "KeyHint",
         UserInputService.TouchEnabled and "MENU  TOP RIGHT BUTTON" or "MENU  RIGHT SHIFT",
-        UDim2.fromOffset(12, 44),
-        UDim2.fromOffset(240, 12),
+        UDim2.fromOffset(0, 44),
+        UDim2.new(1, 0, 0, 12),
         Enum.Font.Code,
         8,
         Palette.Muted,
@@ -1056,64 +1232,18 @@ function Func:BuildUI()
         if Func.UI.PanelTween then
             Func.UI.PanelTween:Cancel()
         end
+        local TargetHeight = Func.UI.Minimized and HeaderHeight or (Func.UI.PanelHeight or DesignHeight)
         Func.UI.PanelTween = TweenService:Create(
             Panel,
             TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            { Size = Func.UI.Minimized and UDim2.fromOffset(PanelWidth, 62) or UDim2.fromOffset(PanelWidth, Func.UI.PanelHeight or PanelHeight) }
+            { Size = UDim2.fromOffset(PanelWidth, TargetHeight) }
         )
         Func.UI.PanelTween:Play()
     end)
-    Func.UI.Minimized = false
-    Func:LayoutUI(true)
+    Func:Layout()
+    Func:BuildToggle()
 end
 
--- Opening/closing the menu only hides the panel, so the ESP boxes keep rendering either way.
-function Func:SetMenuVisible(Visible)
-    Config["Menu"] = Visible == true
-    if Func.UI.Panel then
-        Func.UI.Panel.Visible = Config["Menu"]
-    end
-end
-
--- Fits the panel to the current viewport. Phones get a smaller overall scale plus a scrolling
--- body, so the whole menu stays usable without changing the authored layout.
-function Func:LayoutUI(Force)
-    local Camera = workspace.CurrentCamera
-    local Viewport = Camera and Camera.ViewportSize or Vector2.new(1280, 720)
-    if not Force and Func.LastViewport == Viewport then
-        return
-    end
-    Func.LastViewport = Viewport
-    local Fit = math.min(
-        (Viewport.Y - ViewportMargin) / PanelHeight,
-        (Viewport.X - ViewportMargin) / PanelWidth
-    )
-    local Scale = math.clamp(Fit, MinUIScale, 1)
-    local Available = math.max(120, (Viewport.Y - ViewportMargin) / Scale)
-    local Height = math.min(PanelHeight, Available)
-    Func.UI.PanelHeight = Height
-    if Func.UI.PanelScale then
-        Func.UI.PanelScale.Scale = Scale
-    end
-    local Panel = Func.UI.Panel
-    local Content = Func.UI.Content
-    if Panel and not Func.UI.Minimized then
-        Panel.Size = UDim2.fromOffset(PanelWidth, Height)
-    end
-    if Content then
-        Content.Size = UDim2.fromOffset(PanelWidth, math.max(120, Height - 63))
-    end
-    if Panel then
-        local ShownHeight = Func.UI.Minimized and 62 or Height
-        local MaxX = math.max(8, Viewport.X - PanelWidth * Scale - 8)
-        local MaxY = math.max(8, Viewport.Y - ShownHeight * Scale - 8)
-        local X = math.clamp(Panel.Position.X.Offset, 8, MaxX)
-        local Y = math.clamp(Panel.Position.Y.Offset, 8, MaxY)
-        if X ~= Panel.Position.X.Offset or Y ~= Panel.Position.Y.Offset then
-            Panel.Position = UDim2.fromOffset(X, Y)
-        end
-    end
-end
 
 function Func:CreateEntry(Player)
     local Overlay = Func.UI.Overlay
@@ -1411,37 +1541,14 @@ function Func:UpdateESP()
     end
 end
 
--- True only while the player is actually shooting on a touch device. The game's mobile
--- controller is authoritative (its FIRE button state), so dragging the screen to look around
--- never engages the lock. The tracked-touch list is only a fallback for when that module is
--- missing or its controls are disabled.
-function Func:IsTouchFiring()
-    if MobileInputController then
-        local Ok, Held = pcall(function()
-            return MobileInputController:IsFireHeld()
-        end)
-        if Ok and typeof(Held) == "boolean" then
-            if Held then
-                return true
-            end
-            if MobileInputController._enabled == true then
-                return false
-            end
-        end
-    end
-    return UserInputService.TouchEnabled and next(Func.Touches) ~= nil
-end
-
 function Func:UpdateAimbot(DeltaTime)
     local Camera = workspace.CurrentCamera
     if not Camera or not Func.UI.FOVCircle then
         return
     end
-    -- Cheap no-op unless the viewport actually changed (rotation, window resize, device swap).
-    Func:LayoutUI()
     local Viewport = Camera.ViewportSize
     local Center = Vector2.new(Viewport.X * 0.5, Viewport.Y * 0.5)
-    local Radius = Config["FOV Radius"]
+    local Radius = Func:GetAimRadius()
     Func.UI.FOVCircle.Position = UDim2.fromOffset(Center.X, Center.Y)
     Func.UI.FOVCircle.Size = UDim2.fromOffset(Radius * 2, Radius * 2)
     Func.UI.FOVCircle.Visible = Config["Aimbot"] == true
@@ -1472,6 +1579,7 @@ function Func:UpdateAimbot(DeltaTime)
     local PanelPosition = Func.UI.Panel.AbsolutePosition
     local PanelSize = Func.UI.Panel.AbsoluteSize
     local MouseOverPanel = Func.UI.Panel.Visible
+        and Func.UI.Gui.Enabled
         and MousePosition.X >= PanelPosition.X
         and MousePosition.X <= PanelPosition.X + PanelSize.X
         and MousePosition.Y >= PanelPosition.Y
@@ -1481,7 +1589,7 @@ function Func:UpdateAimbot(DeltaTime)
     -- being taken.
     local FireHeld = Func.MouseFiring
         or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-    local TouchHeld = Func:IsTouchFiring()
+    local TouchHeld = UserInputService.TouchEnabled and next(Func.Touches) ~= nil
     local Focused = UserInputService:GetFocusedTextBox()
     if not ((FireHeld and not MouseOverPanel) or TouchHeld) or Focused then
         Func.AimLook = nil
@@ -1588,6 +1696,11 @@ function Func:Stop()
     if Func.UI.Gui then
         Func.UI.Gui:Destroy()
     end
+    if Func.UI.ToggleGui then
+        Func.UI.ToggleGui:Destroy()
+        Func.UI.ToggleGui = nil
+        Func.UI.Toggle = nil
+    end
     if _G.PrismESPStop then
         _G.PrismESPStop = nil
     end
@@ -1634,16 +1747,11 @@ Func:Connect(UserInputService.InputChanged, function(Input)
         return
     end
     local Delta = Input.Position - Func.UI.DragStart
-    local Scale = Func.UI.PanelScale and Func.UI.PanelScale.Scale or 1
-    local Camera = workspace.CurrentCamera
-    local Viewport = Camera and Camera.ViewportSize or Vector2.new(1280, 720)
-    local ShownHeight = Func.UI.Minimized and 62 or (Func.UI.PanelHeight or PanelHeight)
-    local MaxX = math.max(8, Viewport.X - PanelWidth * Scale - 8)
-    local MaxY = math.max(8, Viewport.Y - ShownHeight * Scale - 8)
     Func.UI.Panel.Position = UDim2.fromOffset(
-        math.clamp(Func.UI.PanelStart.X.Offset + Delta.X / Scale, 8, MaxX),
-        math.clamp(Func.UI.PanelStart.Y.Offset + Delta.Y / Scale, 8, MaxY)
+        Func.UI.PanelStart.X.Offset + Delta.X,
+        Func.UI.PanelStart.Y.Offset + Delta.Y
     )
+    Func:ClampPanel()
 end)
 
 Func:Connect(UserInputService.InputEnded, function(Input)
@@ -1659,6 +1767,7 @@ Func:Connect(UserInputService.InputBegan, function(Input)
     local PanelPosition = Func.UI.Panel.AbsolutePosition
     local PanelSize = Func.UI.Panel.AbsoluteSize
     local OverPanel = Func.UI.Panel.Visible
+        and Func.UI.Gui.Enabled
         and Input.Position.X >= PanelPosition.X
         and Input.Position.X <= PanelPosition.X + PanelSize.X
         and Input.Position.Y >= PanelPosition.Y
@@ -1673,32 +1782,24 @@ Func:Connect(UserInputService.InputBegan, function(Input)
     if OverPanel then
         return
     end
-    -- Fallback only: a touch counts as firing when it lands on a fire-style button. A plain
-    -- drag anywhere on the screen is camera look, so it must not engage the lock.
     local FireHit = false
     for _, Object in ipairs(UserInputService:GetGuiObjectsAtPosition(Input.Position.X, Input.Position.Y)) do
-        local Node = Object
-        for _ = 1, 3 do
-            if not Node or not Node:IsA("GuiObject") then
+        if Object:IsA("GuiButton") then
+            local LowerName = string.lower(Object.Name)
+            if string.find(LowerName, "fire", 1, true)
+                or string.find(LowerName, "shoot", 1, true)
+                or string.find(LowerName, "attack", 1, true)
+                or string.find(LowerName, "trigger", 1, true) then
+                FireHit = true
                 break
             end
-            if Node:IsA("GuiButton") then
-                local LowerName = string.lower(Node.Name)
-                if string.find(LowerName, "fire", 1, true)
-                    or string.find(LowerName, "shoot", 1, true)
-                    or string.find(LowerName, "attack", 1, true)
-                    or string.find(LowerName, "trigger", 1, true) then
-                    FireHit = true
-                    break
-                end
-            end
-            Node = Node.Parent
-        end
-        if FireHit then
-            break
         end
     end
-    if FireHit then
+    local Viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize
+    local LowerRight = Viewport
+        and Input.Position.X >= Viewport.X * 0.72
+        and Input.Position.Y >= Viewport.Y * 0.55
+    if FireHit or LowerRight then
         Func.Touches[Input] = true
     end
 end)
@@ -1713,8 +1814,7 @@ Func:Connect(UserInputService.InputBegan, function(Input, GameProcessed)
     if GameProcessed or Input.KeyCode ~= Config["Menu Key"] then
         return
     end
-    Config["Menu"] = not Config["Menu"]
-    Func:SetMenuVisible(Config["Menu"])
+    Func:SetMenuVisible(not Config["Menu"])
 end)
 
 Func:Connect(Players.PlayerRemoving, function(Player)
