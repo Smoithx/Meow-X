@@ -32,7 +32,7 @@ Config = Config or {
     ["Boxes"] = true,
     ["Health"] = true,
     ["Distance"] = true,
-    ["Team Check"] = false,
+    ["Team Check"] = true,
     ["Max Distance"] = 1000,
     ["Aimbot"] = false,
     ["Aim Part"] = "Head",
@@ -50,6 +50,10 @@ if Config["Config Version"] ~= 2 then
     Config["Aim Smooth"] = 40
     Config["Aim Assist Angle"] = 55
 end
+
+-- Teammates are filtered out of the ESP and the aimbot unconditionally, so the stored flag
+-- always reads true even if an older config saved it as false.
+Config["Team Check"] = true
 
 local Func = {}
 local Ranges = { 250, 500, 1000, 2500 }
@@ -97,6 +101,7 @@ Func.Connections = {}
 Func.Touches = {}
 Func.TeamCache = {}
 Func.LocalTeam = nil
+Func.LocalTeamTime = nil
 Func.VisibleCount = 0
 Func.AimTarget = nil
 Func.AimLook = nil
@@ -487,10 +492,6 @@ function Func:CreateSwitch(Parent, Key, Text, Order)
         Func:RefreshSwitch(Key)
         if Key == "ESP" and not Config[Key] then
             Func:ClearEntries()
-        end
-        if Key == "Team Check" then
-            table.clear(Func.TeamCache)
-            Func.LocalTeam = LocalPlayer:GetAttribute("Team")
         end
         Func:RefreshStatus()
     end)
@@ -1383,42 +1384,98 @@ function Func:HideEntry(Entry)
 end
 
 function Func:GetLocalTeam()
-    local Team = LocalPlayer:GetAttribute("Team")
-    if Team ~= nil then
-        Func.LocalTeam = Team
+    local Now = os.clock()
+    if Func.LocalTeamTime and Now - Func.LocalTeamTime < 0.5 then
+        return Func.LocalTeam
     end
-    return Func.LocalTeam
+    Func.LocalTeamTime = Now
+    local Team = nil
+    local Character = LocalPlayer.Character
+    if Character then
+        local Attr = Character:GetAttribute("Team")
+        if typeof(Attr) == "string" and Attr ~= "" then
+            Team = Attr
+        end
+    end
+    if not Team and Hostility then
+        local Ok, Result = pcall(Hostility.TeamOfPlayer, LocalPlayer)
+        if Ok and typeof(Result) == "string" and Result ~= "" then
+            Team = Result
+        end
+    end
+    if not Team then
+        local Attr = LocalPlayer:GetAttribute("Team")
+        if typeof(Attr) == "string" and Attr ~= "" then
+            Team = Attr
+        end
+    end
+    Func.LocalTeam = Team
+    return Team
 end
 
--- Uses the game's own hostility rules so it matches who the server treats as an ally.
--- TeamOfPlayer is authoritative; the Team attribute is only a fallback. Results are cached
--- briefly because ESP and the aimbot both ask per player, every frame.
-function Func:IsTeammate(Player)
-    if not Config["Team Check"] then
-        return false
+-- The merc rig is the authoritative source for an enemy's team: the game tags the rig (or one
+-- of its ancestors) with the Team attribute and Hostility.TeamOfInstance walks up to find it.
+-- TeamOfPlayer only sees the player object and its character, which is empty in this rig-based
+-- game, so it is kept as a fallback instead of being the first choice.
+function Func:GetTeamOfRig(Model, Player)
+    if Hostility then
+        if Model then
+            local Ok, Result = pcall(Hostility.TeamOfInstance, Model)
+            if Ok and typeof(Result) == "string" and Result ~= "" then
+                return Result
+            end
+        end
+        local Ok, Result = pcall(Hostility.TeamOfPlayer, Player)
+        if Ok and typeof(Result) == "string" and Result ~= "" then
+            return Result
+        end
     end
+    if Model then
+        local Attr = Model:GetAttribute("Team")
+        if typeof(Attr) == "string" and Attr ~= "" then
+            return Attr
+        end
+    end
+    local Attr = Player and Player:GetAttribute("Team")
+    if typeof(Attr) == "string" and Attr ~= "" then
+        return Attr
+    end
+    return nil
+end
+
+-- Team separation is always enforced: a teammate is never drawn and never locked. The
+-- comparison uses the game's own hostility rule, where a missing or "Neutral" team counts as
+-- hostile, so free-for-all rounds still treat everybody as an enemy. Results are cached for
+-- half a second and re-checked whenever the rig model changes, which is what happens between
+-- rounds when teams are reassigned.
+function Func:IsTeammate(Player, Model)
     if Player == LocalPlayer then
         return true
     end
     local Now = os.clock()
     local Cached = Func.TeamCache[Player]
-    if Cached and Now - Cached.Time < 0.5 then
+    if Cached and Cached.Model == Model and Now - Cached.Time < 0.5 then
         return Cached.Value
     end
-    local Result = false
+    local MyTeam = Func:GetLocalTeam()
+    local TheirTeam = Func:GetTeamOfRig(Model, Player)
+    local Result = nil
     if Hostility then
-        local Ok, Hostile = pcall(function()
-            return Hostility.AreTeamsHostile(Hostility.TeamOfPlayer(LocalPlayer), Hostility.TeamOfPlayer(Player))
-        end)
+        local Ok, Hostile = pcall(Hostility.AreTeamsHostile, MyTeam, TheirTeam)
         if Ok and typeof(Hostile) == "boolean" then
             Result = not Hostile
         end
-    else
-        local MyTeam = Func:GetLocalTeam()
-        local Team = Player:GetAttribute("Team")
-        Result = MyTeam ~= nil and Team ~= nil and MyTeam == Team
     end
-    Func.TeamCache[Player] = { Time = Now, Value = Result }
+    if Result == nil then
+        if not MyTeam or not TheirTeam then
+            Result = false
+        elseif MyTeam == "Neutral" or TheirTeam == "Neutral" then
+            Result = false
+        else
+            Result = MyTeam == TheirTeam
+        end
+    end
+    Func.TeamCache[Player] = { Model = Model, Team = TheirTeam, Time = Now, Value = Result }
     return Result
 end
 
@@ -1434,7 +1491,7 @@ function Func:UpdateEntry(Player, Model, Entry)
         Func:HideEntry(Entry)
         return false
     end
-    if Func:IsTeammate(Player) then
+    if Func:IsTeammate(Player, Model) then
         Func:HideEntry(Entry)
         return false
     end
@@ -1607,7 +1664,7 @@ function Func:UpdateAimbot(DeltaTime)
     -- candidates, and the closest player wins - distance, not screen offset, so the lock stays
     -- on whoever is nearest instead of jumping to whatever drifts past the crosshair.
     for Player, Model in pairs(Rigs) do
-        if not Func:IsTeammate(Player) then
+        if not Func:IsTeammate(Player, Model) then
             local AimPoint = Func:GetAimPoint(Model)
             if AimPoint then
                 local Delta = AimPoint - CameraPosition
@@ -1627,7 +1684,7 @@ function Func:UpdateAimbot(DeltaTime)
             end
         end
     end
-    if BestPlayer and PreviousTarget and BestPlayer ~= PreviousTarget and not Func:IsTeammate(PreviousTarget) then
+    if BestPlayer and PreviousTarget and BestPlayer ~= PreviousTarget and not Func:IsTeammate(PreviousTarget, Rigs[PreviousTarget]) then
         local PreviousModel = Rigs[PreviousTarget]
         if PreviousModel and not Func:IsRigDead(PreviousModel) then
             local PreviousPoint = Func:GetAimPoint(PreviousModel)
@@ -1823,6 +1880,8 @@ Func:Connect(Players.PlayerRemoving, function(Player)
 end)
 
 -- Teams are reassigned between rounds, so the cached answer has to be dropped when they change.
+-- The rig models are rebuilt each round too, and IsTeammate already re-checks when the model
+-- changes, but the attribute signals catch a team edit that happens on the same rig.
 local function WatchTeam(Player)
     if Player == LocalPlayer then
         return
@@ -1830,11 +1889,29 @@ local function WatchTeam(Player)
     Func:Connect(Player:GetAttributeChangedSignal("Team"), function()
         Func.TeamCache[Player] = nil
     end)
+    Func:Connect(Player.CharacterAdded, function(Character)
+        Func.TeamCache[Player] = nil
+        Func:Connect(Character:GetAttributeChangedSignal("Team"), function()
+            Func.TeamCache[Player] = nil
+        end)
+    end)
 end
 
 Func:Connect(LocalPlayer:GetAttributeChangedSignal("Team"), function()
-    Func.LocalTeam = LocalPlayer:GetAttribute("Team")
+    Func.LocalTeam = nil
+    Func.LocalTeamTime = nil
     table.clear(Func.TeamCache)
+end)
+
+Func:Connect(LocalPlayer.CharacterAdded, function(Character)
+    Func.LocalTeam = nil
+    Func.LocalTeamTime = nil
+    table.clear(Func.TeamCache)
+    Func:Connect(Character:GetAttributeChangedSignal("Team"), function()
+        Func.LocalTeam = nil
+        Func.LocalTeamTime = nil
+        table.clear(Func.TeamCache)
+    end)
 end)
 
 for _, Player in ipairs(Players:GetPlayers()) do
