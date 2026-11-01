@@ -40,6 +40,7 @@ Config = Config or {
     ["Aim Smooth"] = 40,
     ["Aim Assist Angle"] = 55,
     ["Aim Muzzle Comp"] = true,
+    ["Fire Lock Time"] = 0.25,
     ["Menu"] = true,
     ["Menu Key"] = Enum.KeyCode.RightShift,
 }
@@ -59,6 +60,8 @@ local Func = {}
 local Ranges = { 250, 500, 1000, 2500 }
 local FOVOptions = { 220, 160, 120, 90, 60, 40, 30, 20 }
 local SmoothOptions = { 0, 20, 40, 55, 60, 70, 80, 90, 95 }
+-- How long the lock stays armed after each shot, in seconds.
+local LockTimes = { 0.15, 0.25, 0.4, 0.6, 0.9, 1.4, 2.5 }
 local PartNames = {
     Head = true,
     UpperTorso = true,
@@ -105,32 +108,68 @@ Func.LocalTeamTime = nil
 Func.VisibleCount = 0
 Func.AimTarget = nil
 Func.AimLook = nil
-Func.MouseFiring = false
 Func.FireAimPoint = nil
 Func.RenderBound = false
 Func.Running = true
+Func.FireLockedUntil = 0
+Func.FireTapExtra = 0
+Func.FireWrappers = {}
+Func.SilentGun = nil
 
 if GunController then
     if type(_G.PrismFireDirectionHook) == "function" then
         GunController.GetFireDirectionUnspread = _G.PrismFireDirectionHook
         _G.PrismFireDirectionHook = nil
     end
+    if type(_G.PrismSilentGunRestore) == "function" then
+        pcall(_G.PrismSilentGunRestore)
+    end
     local OriginalFireDirection = GunController.GetFireDirectionUnspread
-    if type(OriginalFireDirection) == "function" then
-        _G.PrismFireDirectionHook = OriginalFireDirection
-        GunController.GetFireDirectionUnspread = function(self, ...)
-            local Point = Func.FireAimPoint
-            if Point and Config["Aim Muzzle Comp"] ~= false then
-                local Muzzle = Func:GetMuzzleCFrame()
-                if Muzzle then
-                    local Direction = Point - Muzzle.Position
-                    if Direction.Magnitude > 0.5 then
-                        return Direction.Unit
-                    end
+    if type(OriginalFireDirection) ~= "function" then
+        OriginalFireDirection = function(self)
+            local Muzzle = self:GetActiveProjectileMuzzleWorldCFrame()
+            return Muzzle.LookVector
+        end
+    end
+    _G.PrismFireDirectionHook = OriginalFireDirection
+    GunController.GetFireDirectionUnspread = function(self, ...)
+        local Point = Func.FireAimPoint
+        if Point and Config["Aim Muzzle Comp"] ~= false then
+            local Muzzle = Func:GetMuzzleCFrame()
+            if Muzzle then
+                local Direction = Point - Muzzle.Position
+                if Direction.Magnitude > 0.5 then
+                    return Direction.Unit
                 end
             end
-            return OriginalFireDirection(self, ...)
         end
+        return OriginalFireDirection(self, ...)
+    end
+    -- The gun controller stamps the shot's origin and direction here, right before the server
+    -- is told about it, so this is the exact moment a shot leaves the client. It is the only
+    -- thing allowed to engage the lock: holding the mouse button or the touch button does not.
+    local Gun = setmetatable({}, { __index = GunController })
+    local Recorded = {}
+    Func.SilentGun = Gun
+    for _, MethodName in ipairs({ "FireServerProjectile", "GetFireDirectionUnspread", "GetFireOrigin" }) do
+        local Original = GunController[MethodName]
+        if type(Original) == "function" then
+            Recorded[MethodName] = Original
+            Gun[MethodName] = function(_, ...)
+                if MethodName == "FireServerProjectile" then
+                    Func:OnShotSent()
+                end
+                return Original(GunController, ...)
+            end
+        end
+    end
+    _G.PrismSilentGunRestore = function()
+        _G.PrismSilentGunRestore = nil
+        for MethodName, Original in pairs(Recorded) do
+            GunController[MethodName] = Original
+        end
+        table.clear(Recorded)
+        Func.SilentGun = nil
     end
 end
 
@@ -378,6 +417,17 @@ function Func:RefreshSmooth()
     end
 end
 
+function Func:RefreshLockTime()
+    if Func.UI.LockTimeValue then
+        local Hold = tonumber(Config["Fire Lock Time"]) or 0.25
+        if Hold >= 1 then
+            Func.UI.LockTimeValue.Text = string.format("%.1f s", Hold)
+        else
+            Func.UI.LockTimeValue.Text = string.format("%d ms", math.floor(Hold * 1000 + 0.5))
+        end
+    end
+end
+
 function Func:RefreshAimPart()
     for PartName, PartButton in pairs(Func.UI.Parts) do
         local Selected = Config["Aim Part"] == PartName
@@ -430,8 +480,12 @@ function Func:RefreshStatus()
     Func.UI.Status.TextColor3 = Active and Palette.Accent or Palette.Muted
     Func.UI.StatusDot.BackgroundColor3 = Active and Palette.Accent or Palette.Muted
     Func.UI.CountValue.Text = string.format("%02d", Func.VisibleCount)
+    if Func.UI.LockValue then
+        local FireLocked = Config["Aimbot"] == true and Func:IsFireLocked()
+        Func.UI.LockValue.Text = FireLocked and "HOT" or "COLD"
+        Func.UI.LockValue.TextColor3 = FireLocked and Palette.Accent or Palette.Muted
+    end
     local Viewport = Func:GetViewportSize()
-    Func.UI.ViewportValue.Text = string.format("%d x %d", Viewport.X, Viewport.Y)
     if Func.UI.LastViewport ~= Viewport then
         Func.UI.LastViewport = Viewport
         Func:Layout()
@@ -667,6 +721,9 @@ function Func:BuildToggle()
         Func:SetMenuVisible(not Config["Menu"])
     end)
 end
+
+-- The aim lock no longer reads the touch HUD or the mouse button; a shot leaving the gun is
+-- what arms it (see SetFireLocked / PumpShotChannel below).
 
 function Func:BuildUI()
     local Existing = PlayerGui:FindFirstChild("PrismPlayerIntel")
@@ -1015,7 +1072,7 @@ function Func:BuildUI()
         Func:RefreshRange()
     end)
     AddSection("COMBAT MODULE")
-    local AimCard = Func:CreateCard(Content, "AimCard", 182, NextOrder())
+    local AimCard = Func:CreateCard(Content, "AimCard", 216, NextOrder())
     AddList(AimCard, 4)
     Func:CreateSwitch(AimCard, "Aimbot", "AIM BOT", 1)
     local LockLabel = Func:CreateLabel(
@@ -1129,6 +1186,56 @@ function Func:BuildUI()
         Enum.TextXAlignment.Center
     )
     Func.UI.SmoothValue = SmoothValue
+    -- Lock window: how long the assist stays armed after a shot leaves the gun. Holding the
+    -- trigger keeps re-arming it; a longer window also bridges slower fire rates and shotguns.
+    local LockRow = Instance.new("Frame")
+    LockRow.Name = "LockRow"
+    LockRow.Size = UDim2.new(1, 0, 0, 30)
+    LockRow.BackgroundTransparency = 1
+    LockRow.LayoutOrder = 5
+    LockRow.ZIndex = AimCard.ZIndex + 1
+    LockRow.Parent = AimCard
+    local LockPartLabel = Func:CreateLabel(
+        LockRow,
+        "LockTimeLabel",
+        "LOCK TIME",
+        UDim2.fromOffset(6, 0),
+        UDim2.new(1, -124, 1, 0),
+        Enum.Font.GothamBold,
+        11,
+        Palette.Text
+    )
+    local LockButton = Instance.new("TextButton")
+    LockButton.Name = "LockButton"
+    LockButton.AnchorPoint = Vector2.new(1, 0.5)
+    LockButton.Position = UDim2.new(1, -4, 0.5, 0)
+    LockButton.Size = UDim2.fromOffset(110, 28)
+    LockButton.BackgroundColor3 = Palette.SurfaceLight
+    LockButton.BackgroundTransparency = 0.02
+    LockButton.AutoButtonColor = false
+    LockButton.Text = ""
+    LockButton.ZIndex = LockRow.ZIndex + 1
+    LockButton.Parent = LockRow
+    local LockButtonCorner = Instance.new("UICorner")
+    LockButtonCorner.CornerRadius = UDim.new(0, 5)
+    LockButtonCorner.Parent = LockButton
+    local LockButtonStroke = Instance.new("UIStroke")
+    LockButtonStroke.Color = Palette.Cyan
+    LockButtonStroke.Transparency = 0.65
+    LockButtonStroke.Thickness = 1
+    LockButtonStroke.Parent = LockButton
+    local LockValue = Func:CreateLabel(
+        LockButton,
+        "LockValue",
+        "250 ms",
+        UDim2.fromScale(0, 0),
+        UDim2.fromScale(1, 1),
+        Enum.Font.Code,
+        11,
+        Palette.Accent,
+        Enum.TextXAlignment.Center
+    )
+    Func.UI.LockTimeValue = LockValue
     local AimState = Func:CreateLabel(
         SmoothRow,
         "AimState",
@@ -1171,6 +1278,21 @@ function Func:BuildUI()
         end
         Func:RefreshSmooth()
     end)
+    Func:Connect(LockButton.Activated, function()
+        local Current = tonumber(Config["Fire Lock Time"]) or 0.25
+        local Found = false
+        for Index, Value in ipairs(LockTimes) do
+            if math.abs(Value - Current) < 0.0005 then
+                Config["Fire Lock Time"] = LockTimes[(Index % #LockTimes) + 1]
+                Found = true
+                break
+            end
+        end
+        if not Found then
+            Config["Fire Lock Time"] = 0.25
+        end
+        Func:RefreshLockTime()
+    end)
     AddSection("TELEMETRY")
     local TelemetryCard = Func:CreateCard(Content, "TelemetryCard", 68, NextOrder())
     local CountLabel = Func:CreateLabel(
@@ -1197,7 +1319,7 @@ function Func:BuildUI()
     local ViewportLabel = Func:CreateLabel(
         TelemetryCard,
         "ViewportLabel",
-        "VIEWPORT",
+        "LOCK",
         UDim2.fromOffset(92, 2),
         UDim2.fromOffset(100, 12),
         Enum.Font.Code,
@@ -1207,14 +1329,15 @@ function Func:BuildUI()
     local ViewportValue = Func:CreateLabel(
         TelemetryCard,
         "ViewportValue",
-        "0 x 0",
+        "COLD",
         UDim2.fromOffset(92, 14),
         UDim2.new(1, -92, 0, 28),
         Enum.Font.Code,
         12,
-        Palette.Cyan
+        Palette.Muted
     )
     Func.UI.ViewportValue = ViewportValue
+    Func.UI.LockValue = ViewportValue
     local KeyHint = Func:CreateLabel(
         TelemetryCard,
         "KeyHint",
@@ -1245,6 +1368,153 @@ function Func:BuildUI()
     Func:BuildToggle()
 end
 
+
+function Func:SetFireLocked()
+    local Hold = tonumber(Config["Fire Lock Time"]) or 0.25
+    if Hold < 0 then
+        Hold = 0
+    end
+    Func.FireLockedUntil = os.clock() + Hold + Func.FireTapExtra
+end
+
+function Func:OnShotSent()
+    if Config["Aimbot"] then
+        Func:SetFireLocked()
+    end
+end
+
+function Func:IsFireLocked()
+    return os.clock() < Func.FireLockedUntil
+end
+
+-- The game announces its shot through GunController. Every method the controller exposes is
+-- spotted at startup and wrapped: whichever one the client calls to put a shot on the wire
+-- arms the lock. The wrapper stands in for the original, so the gun keeps working untouched.
+-- Nothing in this Lua build lets a remote's outgoing method be read or replaced (the slot
+-- answers "not a valid member" for every access object), which is why the controller is the
+-- hook point rather than WeaponFired itself.
+local GunHookNames = {
+    "FireServerProjectile",
+    "FireServerRaycast",
+    "FireServerHitscan",
+    "FireServerBullet",
+    "FireServerShot",
+    "ServerFire",
+    "SendShot",
+    "SubmitShot",
+    "SendFire",
+    "FireWeapon",
+    "WeaponFired",
+    "Fire",
+}
+
+function Func:BindGunHook()
+    local Gun = GunController
+    if not Gun or Func.GunHooked then
+        return
+    end
+    Func.GunHooked = true
+    Func.GunMethods = {}
+    Func.GunHookable = {}
+    for _, Name in ipairs(GunHookNames) do
+        local Value
+        local Ok = pcall(function()
+            Value = Gun[Name]
+        end)
+        if Ok and type(Value) == "function" then
+            table.insert(Func.GunMethods, Name)
+            local Original = Value
+            local Hooked = function(...)
+                Func:SetFireLocked()
+                return Original(...)
+            end
+            local Assigned = pcall(function()
+                Gun[Name] = Hooked
+            end)
+            if Assigned and Gun[Name] == Hooked then
+                table.insert(Func.GunHookable, Name)
+                print(string.format("[PRISM] gun hook installed: %s", Name))
+            else
+                print(string.format("[PRISM] gun method present but locked: %s", Name))
+            end
+        end
+    end
+    if #Func.GunMethods == 0 then
+        print("[PRISM] gun controller exposes no shot method")
+    end
+end
+local function readSignal(remote, method)
+    local Ok, Value = pcall(function()
+        return remote[method]
+    end)
+    if Ok and typeof(Value) == "RBXScriptSignal" then
+        return Value
+    end
+    return nil
+end
+
+-- Gun hook first. If that controller ever loses the method names above, this net catches the
+-- shot as it arrives on WeaponFired. Firing is rate limited, so a slow firing gun shows up as
+-- the arrival count going up; the first arrival after a quiet spell always counts.
+function Func:PumpShotChannel()
+    if Func.GunHookable and #Func.GunHookable > 0 then
+        return
+    end
+    local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    local Combat = Remotes and Remotes:FindFirstChild("Combat")
+    if not Combat then
+        return
+    end
+    local Remote = Combat:FindFirstChild("WeaponFired") or Combat:FindFirstChild("ReplicateShot")
+    if not Remote then
+        return
+    end
+    local Signal = readSignal(Remote, "OnClientEvent")
+    if not Signal then
+        return
+    end
+    local Count = Signal:GetAttribute("PrismFireArmed")
+    if not Func.FireSignalPeak then
+        Func.FireSignalPeak = Count
+        return
+    end
+    if Count ~= Func.FireSignalPeak then
+        Func.FireSignalPeak = Count
+        Func:SetFireLocked()
+    end
+    local Now = os.clock()
+    if Now - (Func.FireSignalStamp or 0) < 0.2 then
+        return
+    end
+    Func.FireSignalStamp = Now
+end
+
+function Func:RestoreShotChannel()
+    table.clear(Func.FireWrappers)
+end
+
+-- Fallback for a restructured game: any remote whose name reads like a shot gets pumped too.
+function Func:WatchRemote(Remote)
+    if not Remote then
+        return
+    end
+    local IsRemote = Remote:IsA("RemoteEvent") or Remote:IsA("UnreliableRemoteEvent")
+    if not (IsRemote or Remote:IsA("RemoteFunction")) then
+        return
+    end
+    local LowerName = string.lower(Remote.Name)
+    local Named = string.find(LowerName, "fire", 1, true)
+        or string.find(LowerName, "shoot", 1, true)
+        or string.find(LowerName, "shot", 1, true)
+        or string.find(LowerName, "attack", 1, true)
+        or string.find(LowerName, "trigger", 1, true)
+    if not Named then
+        return
+    end
+    if not Func.FireWrappers[Remote] then
+        Func.FireWrappers[Remote] = { Event = Remote, Name = Remote:GetFullName() }
+    end
+end
 
 function Func:CreateEntry(Player)
     local Overlay = Func.UI.Overlay
@@ -1632,25 +1902,15 @@ function Func:UpdateAimbot(DeltaTime)
         SetState("STANDBY", Palette.Muted, Palette.Cyan, 0.42)
         return
     end
-    local MousePosition = UserInputService:GetMouseLocation()
-    local PanelPosition = Func.UI.Panel.AbsolutePosition
-    local PanelSize = Func.UI.Panel.AbsoluteSize
-    local MouseOverPanel = Func.UI.Panel.Visible
-        and Func.UI.Gui.Enabled
-        and MousePosition.X >= PanelPosition.X
-        and MousePosition.X <= PanelPosition.X + PanelSize.X
-        and MousePosition.Y >= PanelPosition.Y
-        and MousePosition.Y <= PanelPosition.Y + PanelSize.Y
-    -- The lock engages only while the fire button is actually held down. Aiming/ADS alone
-    -- never pulls the crosshair, so the assist cannot drift onto a player until a shot is
-    -- being taken.
-    local FireHeld = Func.MouseFiring
-        or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-    local TouchHeld = UserInputService.TouchEnabled and next(Func.Touches) ~= nil
+    -- The lock no longer follows the mouse or the touch button. A shot has to actually leave
+    -- the gun first; SetFireLocked is armed by the shot channel and keeps the assist alive for
+    -- Config["Fire Lock Time"] seconds. Every new shot re-arms it, so holding the trigger
+    -- through a full magazine keeps the lock, while letting go and not shooting releases it.
     local Focused = UserInputService:GetFocusedTextBox()
-    if not ((FireHeld and not MouseOverPanel) or TouchHeld) or Focused then
+    local FireLocked = Func:IsFireLocked()
+    if Focused or not FireLocked then
         Func.AimLook = nil
-        SetState(Focused and "PAUSED" or "HOLD FIRE", Focused and Palette.Muted or Palette.Cyan, Palette.Cyan, 0.42)
+        SetState(Focused and "PAUSED" or "READY", Focused and Palette.Muted or Palette.Cyan, Palette.Cyan, 0.42)
         return
     end
     local Rigs = Func:CollectRigs()
@@ -1704,7 +1964,9 @@ function Func:UpdateAimbot(DeltaTime)
     end
     if not BestPoint then
         Func.AimLook = nil
-        SetState("NO TARGET", Palette.Cyan, Palette.Cyan, 0.42)
+        if FireLocked then
+            SetState("NO TARGET", Palette.Cyan, Palette.Cyan, 0.42)
+        end
         return
     end
     local SmoothAmount = math.clamp(Config["Aim Smooth"] / 100, 0, 0.98)
@@ -1726,7 +1988,9 @@ function Func:UpdateAimbot(DeltaTime)
     Func.AimLook = NextLook
     Func.AimTarget = BestPlayer
     Func.FireAimPoint = BestPoint
-    SetState(string.format("LOCKED %dm", math.floor(BestDistance + 0.5)), Palette.Accent, Palette.Accent, 0.18)
+    if FireLocked then
+        SetState(string.format("LOCKED %dm", math.floor(BestDistance + 0.5)), Palette.Accent, Palette.Accent, 0.18)
+    end
 end
 
 function Func:Stop()
@@ -1745,7 +2009,12 @@ function Func:Stop()
     end
     table.clear(Func.Connections)
     Func:ClearEntries()
+    Func:RestoreShotChannel()
     Func.FireAimPoint = nil
+    Func.FireLockedUntil = 0
+    if type(_G.PrismSilentGunRestore) == "function" then
+        pcall(_G.PrismSilentGunRestore)
+    end
     if GunController and type(_G.PrismFireDirectionHook) == "function" then
         GunController.GetFireDirectionUnspread = _G.PrismFireDirectionHook
         _G.PrismFireDirectionHook = nil
@@ -1768,6 +2037,7 @@ end
 
 -- CONNECTIONS
 Func:BuildUI()
+Func:BindGunHook()
 Func:RefreshSwitch("ESP")
 Func:RefreshSwitch("Boxes")
 Func:RefreshSwitch("Health")
@@ -1778,10 +2048,12 @@ Func:RefreshRange()
 Func:RefreshAimPart()
 Func:RefreshFOV()
 Func:RefreshSmooth()
+Func:RefreshLockTime()
 Func:RefreshStatus()
 
 RunService:BindToRenderStep("PrismAimbot", Enum.RenderPriority.Last.Value, function(DeltaTime)
     if Func.Running then
+        pcall(Func.PumpShotChannel, Func)
         Func:UpdateAimbot(DeltaTime)
     end
 end)
@@ -1812,53 +2084,16 @@ Func:Connect(UserInputService.InputChanged, function(Input)
 end)
 
 Func:Connect(UserInputService.InputEnded, function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-        Func.MouseFiring = false
-        Func.UI.Dragging = false
-    elseif Input.UserInputType == Enum.UserInputType.Touch then
+    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
         Func.UI.Dragging = false
     end
 end)
 
 Func:Connect(UserInputService.InputBegan, function(Input)
-    local PanelPosition = Func.UI.Panel.AbsolutePosition
-    local PanelSize = Func.UI.Panel.AbsoluteSize
-    local OverPanel = Func.UI.Panel.Visible
-        and Func.UI.Gui.Enabled
-        and Input.Position.X >= PanelPosition.X
-        and Input.Position.X <= PanelPosition.X + PanelSize.X
-        and Input.Position.Y >= PanelPosition.Y
-        and Input.Position.Y <= PanelPosition.Y + PanelSize.Y
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-        Func.MouseFiring = not OverPanel
-        return
-    end
     if Input.UserInputType ~= Enum.UserInputType.Touch then
         return
     end
-    if OverPanel then
-        return
-    end
-    local FireHit = false
-    for _, Object in ipairs(UserInputService:GetGuiObjectsAtPosition(Input.Position.X, Input.Position.Y)) do
-        if Object:IsA("GuiButton") then
-            local LowerName = string.lower(Object.Name)
-            if string.find(LowerName, "fire", 1, true)
-                or string.find(LowerName, "shoot", 1, true)
-                or string.find(LowerName, "attack", 1, true)
-                or string.find(LowerName, "trigger", 1, true) then
-                FireHit = true
-                break
-            end
-        end
-    end
-    local Viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize
-    local LowerRight = Viewport
-        and Input.Position.X >= Viewport.X * 0.72
-        and Input.Position.Y >= Viewport.Y * 0.55
-    if FireHit or LowerRight then
-        Func.Touches[Input] = true
-    end
+    Func.Touches[Input] = true
 end)
 
 Func:Connect(UserInputService.InputEnded, function(Input)
