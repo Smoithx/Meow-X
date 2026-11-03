@@ -25,9 +25,12 @@ Config = Config or {
     ["Head Rotation"] = -90,
     ["Attack Interval"] = 0.3,
     ["Auto Skill"] = false,
+    ["Auto Swap"] = false,
+    ["Swap Interval"] = 1.5,
     ["World"] = "World1",
     ["Difficulty"] = 1,
     ["Auto Join"] = false,
+    ["Auto Play Again"] = false,
     ["Auto Sell"] = false,
     ["Sell Interval"] = 10,
     ["Sell Items"] = {},
@@ -42,9 +45,12 @@ local SaveKeys = {
     ["Head Rotation"] = true,
     ["Attack Interval"] = true,
     ["Auto Skill"] = true,
+    ["Auto Swap"] = true,
+    ["Swap Interval"] = true,
     ["World"] = true,
     ["Difficulty"] = true,
     ["Auto Join"] = true,
+    ["Auto Play Again"] = true,
     ["Auto Sell"] = true,
     ["Sell Interval"] = true,
     ["Sell Items"] = true,
@@ -72,8 +78,11 @@ local NextOpen = 0
 local NextMove = 0
 local NextPortal = 0
 local NextJoin = 0
+local NextPlayAgain = 0
 local NextSkill = 0
 local NextSell = 0
+local NextSwap = 0
+local SwapSlot = "Weapon2"
 local SkillAt = {}
 
 function Func:Load()
@@ -268,6 +277,16 @@ function Func:Skill()
             end
         end
     end
+end
+
+function Func:Swap()
+    if not FrameworkOk then
+        return
+    end
+    SwapSlot = (SwapSlot == "Weapon") and "Weapon2" or "Weapon"
+    pcall(function()
+        Framework.Modules.EquipmentUtil:ChangeWeaponSlot(LocalPlayer, SwapSlot)
+    end)
 end
 
 function Func:Run()
@@ -518,6 +537,42 @@ function Func:AutoJoin()
     if Func:Join() then
         NextJoin = os.clock() + 30
     end
+end
+
+function Func:PlayAgain()
+    if not FrameworkOk then
+        return
+    end
+    local ResultGui = PlayerGui:FindFirstChild("ResultGui")
+    local Settlement = ResultGui and ResultGui:FindFirstChild("ScreenSettlement")
+    if not Settlement or not Settlement.Visible then
+        return
+    end
+    local BtnGroup = Settlement:FindFirstChild("BtnGroup")
+    local Button = BtnGroup and BtnGroup:FindFirstChild("PlayAgainBtn")
+    if not Button or not Button.Visible then
+        return
+    end
+    local Count = Button:FindFirstChild("Count")
+    if Count and not string.find(Count.Text, "(0", 1, true) then
+        return
+    end
+    local GameRoundCfg = ReplicatedStorage:FindFirstChild("GameRoundCfg")
+    local World = GameRoundCfg and GameRoundCfg:GetAttribute("WorldId")
+    local Difficulty = GameRoundCfg and GameRoundCfg:GetAttribute("DiffLevel")
+    local Blocked = false
+    pcall(function()
+        local Info = Framework.Modules.WorldUtil:GetWorldDiffInfo(World, Difficulty)
+        if Info and Info.LootType == "Ore" then
+            Blocked = not Framework.Modules.ForgeUtil:CheckCanAdd(LocalPlayer, 1)
+        elseif Info and Info.LootType == "Material" then
+            Blocked = not Framework.Modules.MaterialUtil:CheckCanAdd(LocalPlayer, 1)
+        end
+    end)
+    if Blocked then
+        Func:Sell()
+    end
+    Func:ClickGui(Button)
 end
 
 function Func:Sell()
@@ -837,8 +892,8 @@ function Func:Window()
     })
     local Main = Func:Create("Frame", {
         Name = "Main",
-        Position = UDim2.new(0, 16, 0.5, -190),
-        Size = UDim2.fromOffset(320, 380),
+        Position = UDim2.new(0, 16, 0.5, -220),
+        Size = UDim2.fromOffset(320, 440),
         BackgroundColor3 = Theme.Background,
         BorderSizePixel = 0,
         Parent = Gui,
@@ -1082,6 +1137,8 @@ function Func:Window()
     Func:Slider(FarmPage, "Head Height", "Head Height", 0, 15, 0.5)
     Func:Slider(FarmPage, "Head Rotation", "Head Rotation", -180, 180, 5)
     Func:Slider(FarmPage, "Attack Interval", "Attack Interval", 0.1, 1, 0.05)
+    Func:Toggle(FarmPage, "Auto Swap", "Auto Swap", "Swap between your equipped weapons on a timer")
+    Func:Slider(FarmPage, "Swap Interval", "Swap Interval", 0.5, 5, 0.5)
     Func:Create("TextLabel", {
         Size = UDim2.new(1, 0, 0, 16),
         BackgroundTransparency = 1,
@@ -1136,6 +1193,7 @@ function Func:Window()
     Func:Choice(DiffGrid, "Difficulty", 4, "Torment")
     Func:Choice(DiffGrid, "Difficulty", 5, "Inferno")
     Func:Toggle(JoinPage, "Auto Join", "Auto Join", "Create a room for the selected dungeon on its own")
+    Func:Toggle(JoinPage, "Auto Play Again", "Auto Play Again", "Vote Play Again on the settlement screen")
     local JoinNow = Func:Create("TextButton", {
         Name = "JoinNow",
         Size = UDim2.new(1, 0, 0, 34),
@@ -1179,7 +1237,7 @@ function Func:Window()
         for Key, Page in next, Pages do
             Page.Visible = Expanded and Key == Shown
         end
-        Main.Size = Expanded and UDim2.fromOffset(320, 380) or UDim2.fromOffset(320, 38)
+        Main.Size = Expanded and UDim2.fromOffset(320, 440) or UDim2.fromOffset(320, 38)
     end)
     local Dragging = false
     local StartPosition, StartInput
@@ -1248,6 +1306,32 @@ task.spawn(function()
                 if os.clock() >= NextSell then
                     NextSell = os.clock() + Config["Sell Interval"]
                     Func:Sell()
+                end
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            if Config["Auto Swap"] then
+                if os.clock() >= NextSwap then
+                    NextSwap = os.clock() + Config["Swap Interval"]
+                    Func:Swap()
+                end
+            end
+        end)
+    end
+end)
+
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            if Config["Auto Play Again"] then
+                if os.clock() >= NextPlayAgain then
+                    NextPlayAgain = os.clock() + 3
+                    Func:PlayAgain()
                 end
             end
         end)
